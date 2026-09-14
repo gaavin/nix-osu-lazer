@@ -1,0 +1,224 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Max Power <me@gavinpower.dev>
+Date: Mon, 14 Sep 2026 01:18:47 -0230
+Subject: [PATCH] HACK: wayland: Present GL as a tearing game surface on the
+ xdg_toplevel.
+
+osu!lazer draws with GL through SDL, and unlike Wine's winewayland, SDL
+already binds the EGL window to the xdg_toplevel's own wl_surface with a
+full opaque region, so there is no subsurface to remove. What it never does
+is tell the compositor what that surface is: there is no wp_content_type,
+and no wp_tearing_control, so a swap interval of 0 still waits for vblank
+inside the compositor.
+
+Tag the toplevel surface GAME, and on GL swaps attach wp_tearing_control
+ASYNC while the swap interval is 0 (VSYNC otherwise). The tearing control is
+created on the first GL swap and released when the window is reconfigured
+for Vulkan, because Mesa's Vulkan WSI attaches its own and a second one is a
+protocol error.
+
+SDL_VIDEO_WAYLAND_GAME_PRESENTATION=0 restores the stock behaviour.
+---
+ src/video/wayland/SDL_waylandopengles.c |  5 ++
+ src/video/wayland/SDL_waylandvideo.c    | 16 ++++++
+ src/video/wayland/SDL_waylandvideo.h    |  2 +
+ src/video/wayland/SDL_waylandwindow.c   | 66 +++++++++++++++++++++++++
+ src/video/wayland/SDL_waylandwindow.h   |  4 ++
+ 5 files changed, 93 insertions(+)
+
+diff --git a/src/video/wayland/SDL_waylandopengles.c b/src/video/wayland/SDL_waylandopengles.c
+index 08ced0e..99a058c 100644
+--- a/src/video/wayland/SDL_waylandopengles.c
++++ b/src/video/wayland/SDL_waylandopengles.c
+@@ -128,6 +128,11 @@ bool Wayland_GLES_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window)
+         return true;
+     }
+ 
++    /* Tear when the application swaps without vsync. The hint is double-buffered
++     * state, so it rides on the commit made by eglSwapBuffers below.
++     */
++    Wayland_UpdateGLTearingHint(window, swap_interval == 0);
++
+     /* By default, we wait for the Wayland frame callback and then issue the pageflip (eglSwapBuffers),
+      * but if we want low latency (double buffer scheme), we issue the pageflip and then wait
+      * immediately for the Wayland frame callback.
+diff --git a/src/video/wayland/SDL_waylandvideo.c b/src/video/wayland/SDL_waylandvideo.c
+index f3facbd..3c767c9 100644
+--- a/src/video/wayland/SDL_waylandvideo.c
++++ b/src/video/wayland/SDL_waylandvideo.c
+@@ -70,6 +70,8 @@
+ #include "pointer-warp-v1-client-protocol.h"
+ #include "pointer-gestures-unstable-v1-client-protocol.h"
+ #include "single-pixel-buffer-v1-client-protocol.h"
++#include "content-type-v1-client-protocol.h"
++#include "tearing-control-v1-client-protocol.h"
+ 
+ #ifdef HAVE_LIBDECOR_H
+ #include <libdecor.h>
+@@ -1425,6 +1427,10 @@ static void handle_registry_global(void *data, struct wl_registry *registry, uin
+         Wayland_DisplayInitPointerGestureManager(d);
+     } else if (SDL_strcmp(interface, wp_single_pixel_buffer_manager_v1_interface.name) == 0) {
+         d->single_pixel_buffer_manager = wl_registry_bind(d->registry, id, &wp_single_pixel_buffer_manager_v1_interface, 1);
++    } else if (SDL_strcmp(interface, wp_tearing_control_manager_v1_interface.name) == 0) {
++        d->wp_tearing_control_manager_v1 = wl_registry_bind(d->registry, id, &wp_tearing_control_manager_v1_interface, 1);
++    } else if (SDL_strcmp(interface, wp_content_type_manager_v1_interface.name) == 0) {
++        d->wp_content_type_manager_v1 = wl_registry_bind(d->registry, id, &wp_content_type_manager_v1_interface, 1);
+     }
+ #ifdef SDL_WL_FIXES_VERSION
+     else if (SDL_strcmp(interface, wl_fixes_interface.name) == 0) {
+@@ -1837,6 +1843,16 @@ static void Wayland_VideoCleanup(SDL_VideoDevice *_this)
+         data->zwp_pointer_gestures = NULL;
+     }
+ 
++    if (data->wp_tearing_control_manager_v1) {
++        wp_tearing_control_manager_v1_destroy(data->wp_tearing_control_manager_v1);
++        data->wp_tearing_control_manager_v1 = NULL;
++    }
++
++    if (data->wp_content_type_manager_v1) {
++        wp_content_type_manager_v1_destroy(data->wp_content_type_manager_v1);
++        data->wp_content_type_manager_v1 = NULL;
++    }
++
+     if (data->single_pixel_buffer_manager) {
+         wp_single_pixel_buffer_manager_v1_destroy(data->single_pixel_buffer_manager);
+         data->single_pixel_buffer_manager = NULL;
+diff --git a/src/video/wayland/SDL_waylandvideo.h b/src/video/wayland/SDL_waylandvideo.h
+index e4247e6..6cf2089 100644
+--- a/src/video/wayland/SDL_waylandvideo.h
++++ b/src/video/wayland/SDL_waylandvideo.h
+@@ -87,6 +87,8 @@ struct SDL_VideoData
+     struct wl_fixes *wl_fixes;
+     struct zwp_pointer_gestures_v1 *zwp_pointer_gestures;
+     struct wp_single_pixel_buffer_manager_v1 *single_pixel_buffer_manager;
++    struct wp_tearing_control_manager_v1 *wp_tearing_control_manager_v1;
++    struct wp_content_type_manager_v1 *wp_content_type_manager_v1;
+ 
+     struct xkb_context *xkb_context;
+ 
+diff --git a/src/video/wayland/SDL_waylandwindow.c b/src/video/wayland/SDL_waylandwindow.c
+index f0ab721..f97fbb5 100644
+--- a/src/video/wayland/SDL_waylandwindow.c
++++ b/src/video/wayland/SDL_waylandwindow.c
+@@ -49,6 +49,8 @@
+ #include "frog-color-management-v1-client-protocol.h"
+ #include "xdg-toplevel-icon-v1-client-protocol.h"
+ #include "color-management-v1-client-protocol.h"
++#include "content-type-v1-client-protocol.h"
++#include "tearing-control-v1-client-protocol.h"
+ 
+ #ifdef HAVE_LIBDECOR_H
+ #include <libdecor.h>
+@@ -292,6 +294,50 @@ static void RepositionPopup(SDL_Window *window, bool use_current_position)
+     }
+ }
+ 
++/* Present the window as a game on its own xdg_toplevel surface: the content
++ * type lets the compositor pick game-appropriate output behaviour, and when
++ * the application swaps without vsync, an async tearing hint lets it flip the
++ * newest frame immediately instead of holding it for the next vblank.
++ *
++ * SDL_VIDEO_WAYLAND_GAME_PRESENTATION=0 restores the stock behaviour.
++ */
++static bool UseGamePresentation(void)
++{
++    static int enabled = -1;
++
++    if (enabled < 0) {
++        enabled = SDL_GetHintBoolean("SDL_VIDEO_WAYLAND_GAME_PRESENTATION", true) ? 1 : 0;
++    }
++
++    return enabled != 0;
++}
++
++void Wayland_UpdateGLTearingHint(SDL_Window *window, bool async)
++{
++    SDL_WindowData *data = window->internal;
++    SDL_VideoData *c = data->waylandData;
++
++    if (!c->wp_tearing_control_manager_v1 || data->shell_surface_type == WAYLAND_SHELL_SURFACE_TYPE_CUSTOM ||
++        !UseGamePresentation()) {
++        return;
++    }
++
++    /* Created on the first GL swap rather than with the window: Mesa's Vulkan
++     * WSI attaches its own tearing control to the surface, and a second one
++     * is a protocol error.
++     */
++    if (!data->wp_tearing_control_v1) {
++        data->wp_tearing_control_v1 = wp_tearing_control_manager_v1_get_tearing_control(c->wp_tearing_control_manager_v1, data->surface);
++        data->tearing_async = false; // A new tearing control starts out as vsync.
++    }
++
++    if (data->tearing_async != async) {
++        wp_tearing_control_v1_set_presentation_hint(data->wp_tearing_control_v1,
++                                                    async ? WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC : WP_TEARING_CONTROL_V1_PRESENTATION_HINT_VSYNC);
++        data->tearing_async = async;
++    }
++}
++
+ static void SetSurfaceOpaqueRegion(struct wl_surface *surface, int width, int height)
+ {
+     SDL_VideoData *viddata = SDL_GetVideoDevice()->internal;
+@@ -2921,6 +2967,13 @@ bool Wayland_ReconfigureWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_W
+             WAYLAND_wl_event_queue_destroy(data->gles_swap_frame_event_queue);
+             data->gles_swap_frame_event_queue = NULL;
+         }
++
++        // Vulkan presents through Mesa's WSI, which brings its own tearing control.
++        if (data->wp_tearing_control_v1) {
++            wp_tearing_control_v1_destroy(data->wp_tearing_control_v1);
++            data->wp_tearing_control_v1 = NULL;
++            data->tearing_async = false;
++        }
+     }
+ 
+     return true;
+@@ -3033,6 +3086,11 @@ bool Wayland_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
+             data->wp_alpha_modifier_surface_v1 = wp_alpha_modifier_v1_get_surface(c->wp_alpha_modifier_v1, data->surface);
+             wp_alpha_modifier_surface_v1_set_multiplier(data->wp_alpha_modifier_surface_v1, SDL_MAX_UINT32);
+         }
++
++        if (c->wp_content_type_manager_v1 && !SDL_WINDOW_IS_POPUP(window) && UseGamePresentation()) {
++            data->wp_content_type_v1 = wp_content_type_manager_v1_get_surface_content_type(c->wp_content_type_manager_v1, data->surface);
++            wp_content_type_v1_set_content_type(data->wp_content_type_v1, WP_CONTENT_TYPE_V1_TYPE_GAME);
++        }
+     }
+ 
+     // Must be called before EGL configuration to set the drawable backbuffer size.
+@@ -3634,6 +3692,14 @@ void Wayland_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window)
+             wp_alpha_modifier_surface_v1_destroy(wind->wp_alpha_modifier_surface_v1);
+         }
+ 
++        if (wind->wp_tearing_control_v1) {
++            wp_tearing_control_v1_destroy(wind->wp_tearing_control_v1);
++        }
++
++        if (wind->wp_content_type_v1) {
++            wp_content_type_v1_destroy(wind->wp_content_type_v1);
++        }
++
+         if (wind->frog_color_managed_surface) {
+             frog_color_managed_surface_destroy(wind->frog_color_managed_surface);
+         }
+diff --git a/src/video/wayland/SDL_waylandwindow.h b/src/video/wayland/SDL_waylandwindow.h
+index b9d0a25..a729d5e 100644
+--- a/src/video/wayland/SDL_waylandwindow.h
++++ b/src/video/wayland/SDL_waylandwindow.h
+@@ -118,6 +118,9 @@ struct SDL_WindowData
+     struct xdg_toplevel_icon_v1 *xdg_toplevel_icon_v1;
+     struct frog_color_managed_surface *frog_color_managed_surface;
+     struct wp_color_management_surface_feedback_v1 *wp_color_management_surface_feedback;
++    struct wp_content_type_v1 *wp_content_type_v1;
++    struct wp_tearing_control_v1 *wp_tearing_control_v1;
++    bool tearing_async;
+ 
+     struct Wayland_ColorInfoState *color_info_state;
+ 
+@@ -281,5 +284,6 @@ extern bool Wayland_ReconfigureWindow(SDL_VideoDevice *_this, SDL_Window *window
+ 
+ extern void Wayland_RemoveOutputFromWindow(SDL_WindowData *window, SDL_DisplayData *display_data);
+ extern void Wayland_UpdateWindowPosition(SDL_Window *window);
++extern void Wayland_UpdateGLTearingHint(SDL_Window *window, bool async);
+ 
+ #endif // SDL_waylandwindow_h_

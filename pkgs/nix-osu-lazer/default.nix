@@ -7,6 +7,15 @@
   sdl3,
   wayland-protocols,
   writeShellApplication,
+  aria2,
+  coreutils,
+  curl,
+  diffutils,
+  findutils,
+  gawk,
+  gnused,
+  iproute2,
+  unzip,
   nativeWayland ? true,
   # BASS device update period handed to osu!framework's testing hook, in
   # samples when negative. osu!'s default 10ms period is most of its audio
@@ -16,6 +25,13 @@
   # Stop the desktop OpenTabletDriver daemon for as long as osu! runs. Turn
   # this off if osu!'s own tablet support is disabled in its settings.
   stopTabletDaemon ? true,
+  # `Key = Value` lines merged into game.ini and framework.ini before launch.
+  gameSettingsFile ? null,
+  frameworkSettingsFile ? null,
+  # One beatmap set ID, or one .osk URL, per line. Whatever osu! has not
+  # imported yet is downloaded and handed to it at launch.
+  beatmapsFile ? null,
+  skinsFile ? null,
 }:
 
 # The official AppImage, so score submission and multiplayer keep working: the
@@ -24,7 +40,7 @@
 # a game and asks the compositor to tear when vsync is off.
 
 let
-  pname = "osu-lazer-tearing";
+  pname = "nix-osu-lazer";
   inherit (osu-lazer-bin) version src;
 
   # ppy.SDL3-CS bindings are generated against one SDL commit, and the release
@@ -86,34 +102,61 @@ let
     "--set-default OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD ${toString bassDevicePeriod}"
   );
 
-  # osu! reads the tablet over hidraw through its bundled OpenTabletDriver. A
-  # running otd-daemon reads the same tablet and replays it through its virtual
-  # tablet, so the pen would also reach osu! through the compositor: later, and
-  # mapped by the daemon's area instead of osu!'s.
-  tabletDaemonGuard = writeShellApplication {
-    name = "osu-tablet-daemon-guard";
+  applySettings = writeShellApplication {
+    name = "nix-osu-lazer-apply-settings";
+    runtimeInputs = [
+      coreutils
+      diffutils
+      gawk
+    ];
+    text = builtins.readFile ./apply-settings.sh;
+  };
+
+  exportSettings = writeShellApplication {
+    name = "nix-osu-lazer-export-settings";
+    runtimeInputs = [ gawk ];
+    text = builtins.readFile ./export-settings.sh;
+  };
+
+  syncContent = writeShellApplication {
+    name = "nix-osu-lazer-sync-content";
+    runtimeInputs = [
+      aria2
+      coreutils
+      curl
+      findutils
+      unzip
+    ];
+    text = builtins.readFile ./sync-content.sh;
+  };
+
+  optionalPath = file: lib.optionalString (file != null) "${file}";
+
+  # @osu@ is the wrapped AppImage, which only exists in $out.
+  launcher = writeShellApplication {
+    name = "osu-launcher";
+    runtimeInputs = [
+      coreutils
+      gnused
+      iproute2
+    ];
     text = ''
-      unit=opentabletdriver.service
-      stopped=
+      osu="@osu@"
+      stop_tablet_daemon="${lib.optionalString stopTabletDaemon "1"}"
+      game_settings="${optionalPath gameSettingsFile}"
+      framework_settings="${optionalPath frameworkSettingsFile}"
+      beatmaps="${optionalPath beatmapsFile}"
+      skins="${optionalPath skinsFile}"
+      apply_settings_bin="${lib.getExe applySettings}"
+      export_settings_bin="${lib.getExe exportSettings}"
+      sync_content_bin="${lib.getExe syncContent}"
+      # game.ini and framework.ini exactly as a fresh install of this release
+      # writes them, for --export-settings to compare against.
+      factory_game="${./factory-game.ini}"
+      factory_framework="${./factory-framework.ini}"
 
-      restart_daemon() {
-        if [ -n "$stopped" ]; then
-          systemctl --user --no-block start "$unit" || true
-        fi
-      }
-      trap restart_daemon EXIT
-      trap 'exit 129' HUP
-      trap 'exit 130' INT
-      trap 'exit 143' TERM
-
-      # A second launch only hands its arguments to the running instance. It
-      # finds the daemon already stopped, so restarting it is left to the first.
-      if systemctl --user --quiet is-active "$unit" 2>/dev/null; then
-        systemctl --user stop "$unit" && stopped=1
-      fi
-
-      "@osu@" "$@"
-    '';
+    ''
+    + builtins.readFile ./launcher.sh;
   };
 in
 appimageTools.wrapAppImage {
@@ -139,20 +182,25 @@ appimageTools.wrapAppImage {
     for i in 16 32 48 64 96 128 256 512 1024; do
       install -D ${contents}/osu.png $out/share/icons/hicolor/''${i}x$i/apps/osu.png
     done
-  ''
-  + lib.optionalString stopTabletDaemon ''
+
     mkdir -p $out/libexec
     mv $out/bin/osu! $out/libexec/osu!
-    substitute ${lib.getExe tabletDaemonGuard} $out/bin/osu! --replace-fail @osu@ $out/libexec/osu!
+    substitute ${lib.getExe launcher} $out/bin/osu! --replace-fail @osu@ $out/libexec/osu!
     chmod 555 $out/bin/osu!
   '';
 
   passthru = {
-    inherit sdl3-patched;
+    inherit
+      sdl3-patched
+      applySettings
+      exportSettings
+      syncContent
+      ;
   };
 
   meta = osu-lazer-bin.meta // {
-    description = "osu!lazer official AppImage with SDL presenting on Wayland as a tearing game surface";
+    description = "osu!lazer official AppImage with declarative settings, beatmaps and skins, presenting on Wayland as a tearing game surface";
     platforms = [ "x86_64-linux" ];
+    mainProgram = "osu!";
   };
 }

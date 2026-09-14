@@ -1,5 +1,5 @@
 {
-  description = "osu!lazer on NixOS with SDL presenting as a tearing Wayland game surface";
+  description = "osu!lazer on NixOS with declarative settings, beatmaps and skins, presenting as a tearing Wayland game surface";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -18,8 +18,8 @@
       };
 
       packages = rec {
-        osu-lazer-tearing = pkgs.callPackage ./pkgs/osu-lazer-tearing { };
-        default = osu-lazer-tearing;
+        nix-osu-lazer = pkgs.callPackage ./pkgs/nix-osu-lazer { };
+        default = nix-osu-lazer;
       };
     in
     {
@@ -27,14 +27,19 @@
 
       apps.${system}.default = {
         type = "app";
-        program = "${packages.osu-lazer-tearing}/bin/osu!";
+        program = "${packages.nix-osu-lazer}/bin/osu!";
         meta.description = "Launch osu!lazer";
       };
 
       # Built from the consumer's package set rather than this flake's, so the
       # AppImage and SDL track whatever osu-lazer-bin the system already has.
       overlays.default = final: _prev: {
-        osu-lazer-tearing = final.callPackage ./pkgs/osu-lazer-tearing { };
+        nix-osu-lazer = final.callPackage ./pkgs/nix-osu-lazer { };
       };
+
+      # Uses pkgs.nix-osu-lazer when the overlay is applied, and otherwise
+      # builds the package from the consumer's pkgs all the same.
+      homeModules.nix-osu-lazer = ./modules/home-manager/nix-osu-lazer.nix;
+      homeModules.default = self.homeModules.nix-osu-lazer;
     };
 }

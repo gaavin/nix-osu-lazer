@@ -26,6 +26,7 @@ The launcher also:
 
 - sets `SDL_VIDEODRIVER=wayland`
 - sets the BASS device period to 128 samples through osu!framework's `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD` hook. Against a 128-sample PipeWire quantum, BASS's reported output latency drops from 15 ms to 5 ms
+- loads a [patched](pkgs/nix-osu-lazer/pipewire-alsa-low-latency.patch) pipewire-alsa PCM plugin, which accepts ALSA periods down to 8 frames and 64 bytes instead of 64 frames and 128 bytes. It goes into the sandbox's `/etc/asound.conf`, so the rest of the system keeps the stock plugin
 - stops the `opentabletdriver.service` user unit while osu! runs, and starts it again on exit. osu! reads the tablet itself, and a running daemon would hand it the pen a second time through its virtual tablet
 - sets `OSU_EXTERNAL_UPDATE_PROVIDER=1`, so updates come from nixpkgs
 - merges declarative settings and imports declarative beatmaps and skins, when the [Home Manager module](#declarative-settings-beatmaps-and-skins) sets them
@@ -167,6 +168,7 @@ programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { bassDevicePeriod 
 |----------|---------|--------|
 | `nativeWayland` | `true` | Sets `SDL_VIDEODRIVER=wayland`. Without it SDL may pick XWayland, where none of this applies. |
 | `bassDevicePeriod` | `-128` | BASS device update period, in samples when negative. `null` keeps osu!'s default. Set with `--set-default`, so exporting the variable overrides it for one launch. |
+| `lowLatencyPipewireAlsa` | `true` | Loads the patched pipewire-alsa plugin inside osu!'s sandbox. Smaller periods only help if PipeWire's own quantum goes that low too (`default.clock.min-quantum`). |
 | `stopTabletDaemon` | `true` | Stops `opentabletdriver.service` while osu! runs. Turn it off if osu!'s own tablet support is disabled. |
 
 `SDL_VIDEO_WAYLAND_GAME_PRESENTATION=0 osu!` restores stock SDL behaviour without a rebuild.

@@ -150,7 +150,10 @@ osu! stores every file under `files/` by its SHA-256. When an archive is downloa
 
 ```bash
 osu! --sync-content      # download anything missing now; it is imported on the next launch
+osu! --export-beatmaps   # print the imported sets as a beatmaps list, ready to paste
 ```
+
+`--export-beatmaps` reads the set ID from each `.osu` file in `files/`, since the database is closed to anything but osu!. Files older than format v10 carry no set ID; those are found through the recorded hashes when this package downloaded them, and otherwise left out with a warning. A set deleted in game keeps its files until osu! next starts, so export after a launch.
 
 ## Package options
 

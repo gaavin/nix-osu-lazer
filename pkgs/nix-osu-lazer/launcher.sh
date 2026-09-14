@@ -55,6 +55,10 @@ export_settings() {
   printf '};\n'
 }
 
+export_beatmaps() {
+  "$export_beatmaps_bin" "$(game_dir)" "$state_dir"
+}
+
 # osu! reads the tablet over hidraw through its bundled OpenTabletDriver. A
 # running otd-daemon reads the same tablet and replays it through its virtual
 # tablet, so the pen would also reach osu! through the compositor: later, and
@@ -116,6 +120,9 @@ case "${1:-}" in
     ;;
   --export-settings)
     export_settings
+    ;;
+  --export-beatmaps)
+    export_beatmaps
     ;;
   *)
     launch "$@"

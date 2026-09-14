@@ -118,6 +118,16 @@ let
     text = builtins.readFile ./export-settings.sh;
   };
 
+  exportBeatmaps = writeShellApplication {
+    name = "nix-osu-lazer-export-beatmaps";
+    runtimeInputs = [
+      coreutils
+      findutils
+      gawk
+    ];
+    text = builtins.readFile ./export-beatmaps.sh;
+  };
+
   syncContent = writeShellApplication {
     name = "nix-osu-lazer-sync-content";
     runtimeInputs = [
@@ -149,6 +159,7 @@ let
       skins="${optionalPath skinsFile}"
       apply_settings_bin="${lib.getExe applySettings}"
       export_settings_bin="${lib.getExe exportSettings}"
+      export_beatmaps_bin="${lib.getExe exportBeatmaps}"
       sync_content_bin="${lib.getExe syncContent}"
       # game.ini and framework.ini exactly as a fresh install of this release
       # writes them, for --export-settings to compare against.
@@ -194,6 +205,7 @@ appimageTools.wrapAppImage {
       sdl3-patched
       applySettings
       exportSettings
+      exportBeatmaps
       syncContent
       ;
   };

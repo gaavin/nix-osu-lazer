@@ -143,6 +143,8 @@ in
         mirrors on activation and handed to osu! at the next launch. A set
         deleted in game comes back two launches later, since osu! only removes
         a deleted set's files while it starts.
+
+        `osu! --export-beatmaps` prints the sets osu! has imported as this list.
       '';
     };
 

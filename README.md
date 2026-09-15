@@ -50,34 +50,26 @@ They are under **Graphics > Raster sync**. The note under the mode shows which d
 |---------|----------------|---------|--------|
 | Raster sync | `RasterSyncMode` | `TearlineSync` | `Disabled`, `TearlineSync` (one present per refresh, tear line in blanking) or `FrameSlices` |
 | Frame slices per refresh | `RasterFrameSlices` | `4` | Presents per refresh in `FrameSlices` mode, 2 to 16 |
-| Find tear line offset from previous plays | `RasterAutoTearlineOffset` | `true` | Aims the tear line using compositor flip times recorded during plays |
-| Tear line offset | `RasterTearlineOffset` | `0` | Scanlines to move the tear line by, on top of the found offset when that is on. Negative moves it up |
 | Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of the longest recent frame |
 | Show tear line indicator | `RasterShowTearline` | `false` | A strip on the right edge that changes colour with every present |
 
-These can be set declaratively like any other key under `settings`. **Use the found offset as the manual offset** copies the found offset into the manual one and turns finding off. **Forget recorded flips** starts the recording over.
+These can be set declaratively like any other key under `settings`. There is no manual tear line offset: osu! steers the tear line itself, and the note under **Show tear line indicator** shows where it is steering to and why. **Forget recorded flips** starts the recording over, including the play in progress.
 
-### Finding the offset from previous plays
+### Steering the tear line during gameplay
 
 A present leaves osu! on time, but the compositor takes a moment to flip it, and scanout moves on in the meantime. The tear line lands that much further down the screen.
 
-During plays, osu! times that delay. After every third timed swap, it polls the CRTC until the framebuffer on its primary plane changes, which happens once the kernel accepts the compositor's flip. Reading the CRTC is open to any client and takes about 2 µs. Each play's swap-to-flip times go into a histogram of 10 µs bins, and the last 20 plays at each display mode are kept in `~/.local/share/osu/raster-sync-flips.json`.
+During plays, osu! times that delay. After every third timed swap, it polls the CRTC until the framebuffer on its primary plane changes, which happens once the kernel accepts the compositor's flip. Reading the CRTC is open to any client and takes about 2 µs.
 
-Every recorded play weighs the same. osu! finds the span of flip times, as long as the blanking interval lasts, that holds the most flips. It then moves the tear line up by the scanlines scanout covers in the average flip time inside that span. The setting's note shows the found offset, the median flip time, and the share of flips that land inside the blanking interval at that offset.
+osu! finds the span of flip times, as long as the blanking interval lasts, that holds the most flips. It then moves the tear line up by the scanlines scanout covers in the average flip time inside that span. During a play it refits this about once a second, every 48 timed flips, to a decaying histogram of 10 µs bins that holds about the last 240 flips. The tear line glides towards each refit by a scanline per present, and jumps straight there when the refit is more than half the blanking interval away, as when a play starts. While recent flips have a median over 3 ms, which means the compositor is holding frames for vblank instead of tearing (for example with a notification on screen), or their middle half spreads over more than 1.5 ms, the tear line holds where it is.
 
-A play counts once it has 200 timed flips. It is left out if its median flip time is over 3 ms, which means the compositor was holding frames for vblank instead of tearing, for example with a notification on screen. It is also left out if its middle half of flip times spreads over more than 1.5 ms.
-
-The probe sees the kernel accept a flip slightly before the display driver programs it. If a tear line still shows at the top of the screen, move it up with the manual offset, which is added to the found one.
+Finished plays are kept too, so each play starts from an offset instead of from nothing. The last 20 plays at each display mode go into `~/.local/share/osu/raster-sync-flips.json`, each weighing the same. A play counts once it has 200 timed flips, and is left out by the same median and spread limits.
 
 On the desktop, with KWin compositing at vblank, the probe put KWin's flips 5.45 ms after each vblank, 56 µs between the 10th and 90th percentiles, and timed 300 of 300 swaps.
 
-### Calibrating the tear line by eye
+### Checking the tear line
 
-The indicator shows where tear lines actually land, which also checks the found offset.
-
-1. Turn on **Show tear line indicator**. The strip on the right edge alternates magenta and green, and wherever a tear line crosses it, it splits into both colours. The white ticks mark quarters of the screen.
-2. Lower **Tear line offset** until the split appears at the bottom of the screen, and note the value. Raise it until the split appears at the top, and note that.
-3. Set the offset halfway between the two, and turn the indicator off.
+Turn on **Show tear line indicator**. The strip on the right edge alternates magenta and green, and wherever a tear line crosses it, it splits into both colours. The white ticks mark quarters of the screen. With the tear line in blanking, the strip flickers evenly.
 
 If the split jumps around instead of holding still, frames are finishing late. Raise **Render headroom**, or check the late count in the status.
 
@@ -168,7 +160,7 @@ programs.nix-osu-lazer = {
     BeatmapColours = false;
     DimLevel = 1.0;
     ShowFirstRunSetup = false;
-    RasterTearlineOffset = -40;
+    RasterRenderHeadroom = 0.3;
   };
 
   # framework.ini

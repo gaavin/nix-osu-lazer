@@ -80,7 +80,7 @@ The tear line offset is automatic. osu! measures how long the compositor takes t
 
 ### Checking the tear line
 
-Turn on **Show tear line indicator**. Where a tear line crosses the strip, it shows both colours. With the tear line in blanking the strip flickers evenly with no split. With frame slices, neighbouring slices should always differ in colour; bands two or three slices tall mean frames are missing slices. The status note shows how many slices are in use, and how many timed frames the next frame overtook before they flipped. The note under the checkbox shows the current steering target.
+Turn on **Show tear line indicator**. Where a tear line crosses the strip, it shows both colours. With the tear line in blanking the strip flickers evenly with no split. With frame slices, the strip is coloured by slice instead, so it holds still: neighbouring slices differ in colour, except the top and bottom ones with an odd number of slices. A band two slices tall means a slice got no frame of its own. The status note shows how many slices are in use, how many were skipped, and how many timed frames the next frame overtook before they flipped. While playing, the runtime log (`~/.local/share/osu/logs/*.runtime.log`) gets the same numbers every second, with the render, swap call and frame loop times at p50/p99/max, and a line saying where a frame's time went whenever the slice count changes. The note under the checkbox shows the current steering target.
 
 With several displays lit, pick the one osu! is on:
 
@@ -181,7 +181,7 @@ grep 'Raster sync' ~/.local/share/osu/logs/runtime.log
 | Issue | Fix |
 |---|---|
 | Tear line visible or jumping | Raise **Render headroom** and check the late count in the status note. Check the steering note under **Show tear line indicator**. |
-| Fewer slices in use than set | Frames take longer than a slice to render and swap. Lower **Render headroom** or accept the lower count. |
+| Fewer slices in use than set | Frames take longer than a slice to render and swap. The runtime log line for the change says which part took the time. Lower **Render headroom** or accept the lower count. |
 | Status reports overtaken frames | The compositor is not flipping frames before the next arrives. Lower **Frame slices per refresh**. |
 | Steering note says flips are held for vblank | The compositor is not tearing. Use fullscreen and make sure nothing overlaps the game. |
 | Status asks about variable refresh rate | Turn off Adaptive Sync for the display. |

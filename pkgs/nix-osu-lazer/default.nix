@@ -118,8 +118,8 @@ let
           owner = "gaavin";
           repo = "osu";
           # raster-sync
-          rev = "8f6f68b0a15958c8a2d506bb0dd16d1480cdc4be";
-          hash = "sha256-l94F7Sbh2wcTCUzCM5PRGSr+qcSlf96Q9NVSHYwcltc=";
+          rev = "2a0d5260c7ce21332d1afc9d4c8e4ab432b23c47";
+          hash = "sha256-99NanDpDZIVovl4moruXnaRhmHTjDILoy3ctQTfKLcQ=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";

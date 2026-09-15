@@ -28,7 +28,9 @@ KWin flips a tearing fullscreen surface as soon as it is committed. Aimed at the
 
 **Frame slices** mode presents 2 to 16 frames per refresh at evenly spaced scanlines instead. Each band of the screen shows a frame drawn just before scanout reached it, at the cost of stationary tear lines between the bands.
 
-While raster sync is on and the frame limiter is on Unlimited, osu!'s 1000 Hz cap on update and draw frames is lifted, so the scene drawn is never older than one update frame.
+Raster sync only paces frames during gameplay, including pauses and breaks within a map. Menus, song select, results and replays draw as they would without it, since waiting on scanout only made them lag. The vblank clock keeps running meanwhile, so pacing starts straight away when a map does.
+
+During gameplay with the frame limiter on Unlimited, osu!'s 1000 Hz cap on update and draw frames is lifted, so the scene drawn is never older than one update frame. The cap comes back in menus.
 
 On a 2560x1440 display at 144 Hz, with 1543 total lines, 103 of them blanking and 4.5 µs per line, the fitted clock predicted the next kernel vblank to within 0.7 µs. The timed wait landed within 4 µs of its target at the 99th percentile, under one scanline. This was measured with the game's timing code, outside the game.
 

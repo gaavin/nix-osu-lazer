@@ -2,7 +2,7 @@
 
 # nix-osu-lazer
 
-**osu!lazer on NixOS, with declarative settings, beatmaps and skins, presenting as a tearing Wayland game surface.** Built on the official AppImage, so score submission and multiplayer keep working.
+**osu!lazer on NixOS with raster sync: each frame is presented in step with the display's scanout, so the tear line hides in the blanking interval at VSync-off latency.** With declarative settings, beatmaps and skins, presenting as a tearing Wayland game surface.
 
 [![NixOS](https://img.shields.io/badge/NixOS-unstable-informational?logo=NixOS)](https://nixos.org)
 [![Flake](https://img.shields.io/badge/Flake-enabled-success)](https://nixos.wiki/wiki/Flakes)
@@ -13,14 +13,67 @@
 
 </div>
 
-On Wayland, osu!lazer draws through SDL, and SDL never tells the compositor what its window is. With the frame limiter unlocked the swap interval is 0, but the compositor still holds every frame for the next vblank.
+> [!WARNING]
+> This branch builds osu! from source, from the `raster-sync` branch of [gaavin/osu](https://github.com/gaavin/osu/tree/raster-sync). The server only accepts scores from official builds, so scores are not submitted and multiplayer is unavailable. The `master` branch packages the official AppImage instead.
 
-This flake takes the same AppImage as nixpkgs `osu-lazer-bin` and swaps only its bundled `libSDL3.so`. The replacement is built from the exact SDL commit osu! ships, plus [a patch](pkgs/nix-osu-lazer/sdl3-wayland-game-presentation.patch) that:
+## Raster sync
+
+With VSync off, a new frame takes over from whichever scanline the display is scanning out when it is flipped, and the boundary shows as a tear line. VSync avoids it by holding every frame until the blanking interval, which costs up to a refresh of latency. Raster sync keeps VSync off and times each present instead, following Blur Busters' [beam racing](https://blurbusters.com/blur-busters-lagless-raster-follower-algorithm-for-emulator-developers/) and [lagless VSync](https://blurbusters.com/rtss-scanline-sync-howto/) techniques:
+
+1. A thread waits on the display's vblanks with `DRM_IOCTL_WAIT_VBLANK` on `/dev/dri/card*`. The compositor holds DRM master, but reading a CRTC's mode and waiting on vblank are open to any client. A least-squares fit over the last 256 kernel timestamps gives the refresh period and phase, and the mode gives the total and visible line counts.
+2. The draw thread picks the next present time whose scanline sits in the middle of the blanking interval, moved by the tear line offset. It sleeps until that time, minus the longest frame of the last 64, minus the render headroom.
+3. It draws the newest scene from the update thread, waits for the GPU with `glFinish`, sleeps to within 1 ms of the target, and spins the rest of the way before swapping.
+
+KWin flips a tearing fullscreen surface as soon as it is committed. Aimed at the blanking interval, the tear line never reaches the visible screen, and the top of the screen shows a frame drawn a render time before it was scanned out.
+
+**Frame slices** mode presents 2 to 16 frames per refresh at evenly spaced scanlines instead. Each band of the screen shows a frame drawn just before scanout reached it, at the cost of stationary tear lines between the bands.
+
+While raster sync is on and the frame limiter is on Unlimited, osu!'s 1000 Hz cap on update and draw frames is lifted, so the scene drawn is never older than one update frame.
+
+On a 2560x1440 display at 144 Hz, with 1543 total lines, 103 of them blanking and 4.5 µs per line, the fitted clock predicted the next kernel vblank to within 0.7 µs. The timed wait landed within 4 µs of its target at the 99th percentile, under one scanline. This was measured with the game's timing code, outside the game.
+
+### Requirements
+
+- The OpenGL renderer, in fullscreen or borderless
+- A frame limiter other than VSync. Unlimited is best
+- A compositor that flips `tearing-control-v1` surfaces asynchronously. KWin allows it by default, and this package's SDL sends the hint
+- Variable refresh rate off. Raster sync stops if vblanks stop matching the mode's refresh rate
+- Read access to `/dev/dri/card*`, which logind grants the user at the active seat
+
+### Settings
+
+They are under **Graphics > Raster sync**. The note under the mode shows which display is followed, or why raster sync is idle, along with presents per second, the longest render, late presents and timing error.
+
+| Setting | `game.ini` key | Default | Effect |
+|---------|----------------|---------|--------|
+| Raster sync | `RasterSyncMode` | `TearlineSync` | `Disabled`, `TearlineSync` (one present per refresh, tear line in blanking) or `FrameSlices` |
+| Frame slices per refresh | `RasterFrameSlices` | `4` | Presents per refresh in `FrameSlices` mode, 2 to 16 |
+| Tear line offset | `RasterTearlineOffset` | `0` | Scanlines to move the tear line by. Negative moves it up |
+| Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of the longest recent frame |
+| Show tear line indicator | `RasterShowTearline` | `false` | A strip on the right edge that changes colour with every present |
+
+These can be set declaratively like any other key under `settings`.
+
+### Calibrating the tear line
+
+A present leaves osu! on time, but the compositor takes a moment to flip it. That moves the tear line down by a number of scanlines the game cannot measure.
+
+1. Turn on **Show tear line indicator**. The strip on the right edge alternates magenta and green, and wherever a tear line crosses it, it splits into both colours. The white ticks mark quarters of the screen.
+2. Lower **Tear line offset** until the split appears at the bottom of the screen, and note the value. Raise it until the split appears at the top, and note that.
+3. Set the offset halfway between the two, and turn the indicator off.
+
+If the split jumps around instead of holding still, frames are finishing late. Raise **Render headroom**, or check the late count in the status.
+
+The blanking interval is short, 0.46 ms in the example above. A custom mode with a longer vertical total at the same refresh rate (Quick Frame Transport) gives the tear line more room.
+
+`OSU_RASTER_DRM_DEVICE=/dev/dri/card1` and `OSU_RASTER_CRTC=<id>` choose the display when several are lit and osu!'s cannot be told apart by its mode.
+
+## Also in the package
+
+osu! draws through SDL, and on Wayland SDL never tells the compositor what its window is. With the frame limiter unlocked the swap interval is 0, but the compositor still holds every frame for the next vblank. The package swaps the build's bundled `libSDL3.so` for the same SDL commit, plus [a patch](pkgs/nix-osu-lazer/sdl3-wayland-game-presentation.patch) that:
 
 - tags the window's `xdg_toplevel` surface as a game through `wp_content_type_v1`
 - attaches `wp_tearing_control_v1` with an `async` hint while GL swaps at interval 0, and `vsync` otherwise
-
-`osu.Game.dll` is left untouched. The server checks its MD5, so online play is unaffected.
 
 The launcher also:
 
@@ -28,16 +81,16 @@ The launcher also:
 - sets the BASS device period to 128 samples through osu!framework's `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD` hook. Against a 128-sample PipeWire quantum, BASS's reported output latency drops from 15 ms to 5 ms
 - loads a [patched](pkgs/nix-osu-lazer/pipewire-alsa-low-latency.patch) pipewire-alsa PCM plugin, which accepts ALSA periods down to 8 frames and 64 bytes instead of 64 frames and 128 bytes. It goes into the sandbox's `/etc/asound.conf`, so the rest of the system keeps the stock plugin
 - stops the `opentabletdriver.service` user unit while osu! runs, and starts it again on exit. osu! reads the tablet itself, and a running daemon would hand it the pen a second time through its virtual tablet
-- sets `OSU_EXTERNAL_UPDATE_PROVIDER=1`, so updates come from nixpkgs
+- sets `OSU_EXTERNAL_UPDATE_PROVIDER=1`, so osu! does not update itself
 - merges declarative settings and imports declarative beatmaps and skins, when the [Home Manager module](#declarative-settings-beatmaps-and-skins) sets them
 
 > [!NOTE]
-> `x86_64-linux` only. The tearing hint is sent for osu!'s OpenGL renderer with the frame limiter on Unlimited; on Vulkan, Mesa's WSI attaches its own. The compositor has to implement and allow `tearing-control-v1` (KWin allows it by default).
+> `x86_64-linux` only. The compositor has to implement and allow `tearing-control-v1`.
 
 ## Quick Start
 
 ```bash
-nix run github:gaavin/nix-osu-lazer
+nix run github:gaavin/nix-osu-lazer/raster-sync
 ```
 
 ## Install
@@ -51,7 +104,7 @@ nix run github:gaavin/nix-osu-lazer
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    nix-osu-lazer.url = "github:gaavin/nix-osu-lazer";
+    nix-osu-lazer.url = "github:gaavin/nix-osu-lazer/raster-sync";
     nix-osu-lazer.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -76,7 +129,7 @@ nix run github:gaavin/nix-osu-lazer
 }
 ```
 
-The package builds against your own nixpkgs, so the AppImage version follows your `osu-lazer-bin`. Like `osu-lazer-bin`, it needs `nixpkgs.config.allowUnfree = true` (BASS). The overlay is optional for the module, which builds the package from your `pkgs` either way.
+The package builds with your own nixpkgs' .NET 8 SDK, SDL and PipeWire. The osu! version is pinned by the branch. Like `osu-lazer`, it needs `nixpkgs.config.allowUnfree = true` (BASS). The overlay is optional for the module, which builds the package from your `pkgs` either way.
 
 ### 2. Enable it
 
@@ -98,12 +151,14 @@ programs.nix-osu-lazer = {
     BeatmapColours = false;
     DimLevel = 1.0;
     ShowFirstRunSetup = false;
+    RasterTearlineOffset = -40;
   };
 
   # framework.ini
   frameworkSettings = {
     FrameSync = "Unlimited";
     Renderer = "OpenGL";
+    WindowMode = "Fullscreen";
     VolumeUniversal = 0.83;
   };
 
@@ -139,7 +194,7 @@ osu! --apply-settings    # merge now
 osu! --export-settings   # print what differs from a fresh install, ready to paste
 ```
 
-`--export-settings` compares against `game.ini` and `framework.ini` captured from a fresh install of the packaged release, and leaves out the login and values osu! keeps for its own bookkeeping.
+`--export-settings` compares against `game.ini` and `framework.ini` captured from a fresh install of the packaged release, with the raster sync defaults added. It leaves out the login and values osu! keeps for its own bookkeeping.
 
 ### Beatmaps and skins
 
@@ -166,6 +221,7 @@ programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { bassDevicePeriod 
 
 | Argument | Default | Effect |
 |----------|---------|--------|
+| `osuSrc` | `null` | osu! source to build in place of the pinned `raster-sync` branch, such as `builtins.fetchGit ~/Projects/osu`. |
 | `nativeWayland` | `true` | Sets `SDL_VIDEODRIVER=wayland`. Without it SDL may pick XWayland, where none of this applies. |
 | `bassDevicePeriod` | `-128` | BASS device update period, in samples when negative. `null` keeps osu!'s default. Set with `--set-default`, so exporting the variable overrides it for one launch. |
 | `lowLatencyPipewireAlsa` | `true` | Loads the patched pipewire-alsa plugin inside osu!'s sandbox. Smaller periods only help if PipeWire's own quantum goes that low too (`default.clock.min-quantum`). |
@@ -175,19 +231,31 @@ programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { bassDevicePeriod 
 
 ## Verifying
 
-The patched SDL's test programs show whether the hints go out:
+The patched SDL's test programs show whether the tearing hints go out:
 
 ```bash
-tests=$(nix build --no-link --print-out-paths 'github:gaavin/nix-osu-lazer#default.sdl3-patched^installedTests')
+tests=$(nix build --no-link --print-out-paths 'github:gaavin/nix-osu-lazer/raster-sync#default.sdl3-patched^installedTests')
 WAYLAND_DEBUG=client "$tests/libexec/installed-tests/SDL3/testgl" 2>&1 \
   | grep -m2 -E 'set_content_type|set_presentation_hint'
 ```
 
 Expect `set_content_type(3)` (game) and `set_presentation_hint(1)` (async).
 
+Raster sync logs the display it follows to `~/.local/share/osu/logs/runtime.log`:
+
+```bash
+grep 'Raster sync' ~/.local/share/osu/logs/runtime.log
+```
+
 ## Updating
 
-When nixpkgs moves `osu-lazer-bin` to a release that bundles a different SDL commit, the build stops and prints the commit the new AppImage carries. Point `sdlRevision` and the SDL `src` in `pkgs/nix-osu-lazer/default.nix` at it, and rebase the patch if it no longer applies.
+The osu! build is the `raster-sync` branch of gaavin/osu, which sits on a `-lazer` release tag. To move to a newer release:
+
+1. Rebase the branch onto the new tag, and push it.
+2. Set `version` and the source `hash` in `pkgs/nix-osu-lazer/default.nix`.
+3. Regenerate the NuGet lockfile: `nix build .#default.osu.fetch-deps && ./result pkgs/nix-osu-lazer/deps.json`.
+
+If the new release's ppy.SDL3-CS bundles a different SDL commit, the build stops and prints it. Point `sdlRevision` and the SDL `src` at that commit, and rebase the patch if it no longer applies.
 
 A new release can also add settings or change their defaults. Refresh `factory-game.ini` and `factory-framework.ini` from a fresh data directory so `--export-settings` stays accurate.
 
@@ -195,8 +263,13 @@ A new release can also add settings or change their defaults. Refresh `factory-g
 
 | Issue | Solution |
 |-------|----------|
+| Tear line visible near the top or bottom | Calibrate the [tear line offset](#calibrating-the-tear-line). |
+| Tear line jumps around | Frames are finishing late. Raise **Render headroom**, and check the late count in the raster sync status. |
+| Raster sync status asks whether variable refresh rate is on | Turn Adaptive Sync off for the display. |
+| Raster sync status says a device cannot be opened | The user needs access to `/dev/dri/card*`: log in at the seat, or join the `video` group. |
+| Raster sync status says it needs fullscreen, OpenGL or another frame limiter | Change that setting. |
+| No tearing at all | Check that osu! uses OpenGL with the frame limiter on Unlimited, then run the check under [Verifying](#verifying). |
 | Audio crackles | Raise the period: `bassDevicePeriod = -256`, or `null` for osu!'s default. |
-| No tearing | Check that osu! uses OpenGL with the frame limiter on Unlimited, then run the check under [Verifying](#verifying). |
 | Tablet dead outside osu! | The launcher restarts the daemon when osu! exits. If the launcher itself was killed with SIGKILL, run `systemctl --user start opentabletdriver.service`. |
 | A setting does not stick | osu! was running when it was merged. Close osu! and launch it again. |
 | Beatmaps not showing up | They are imported on a plain `osu!` launch, not when osu! is opened with a file or link. |
@@ -204,6 +277,7 @@ A new release can also add settings or change their defaults. Refresh `factory-g
 ## Credits
 
 - [ppy/osu](https://github.com/ppy/osu): osu!lazer
+- [Blur Busters](https://blurbusters.com): beam racing, lagless VSync and the tear line techniques raster sync follows
 - [libsdl-org/SDL](https://github.com/libsdl-org/SDL)
-- [NixOS/nixpkgs `osu-lazer-bin`](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/os/osu-lazer-bin/package.nix): the AppImage packaging this builds on
+- [NixOS/nixpkgs `osu-lazer`](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/os/osu-lazer/package.nix): the source build and NuGet lockfile this builds on
 - [gaavin/nix-osu-stable](https://github.com/gaavin/nix-osu-stable): the beatmap mirror downloader and settings merge this adapts

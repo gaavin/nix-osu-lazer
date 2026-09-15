@@ -1,11 +1,21 @@
 {
   lib,
-  appimageTools,
+  buildDotnetModule,
+  buildFHSEnv,
+  dotnetCorePackages,
   fetchFromGitHub,
+  makeDesktopItem,
   makeWrapper,
-  osu-lazer-bin,
+  alsa-lib,
+  ffmpeg,
+  libglvnd,
+  libxi,
+  lttng-ust,
+  numactl,
   pipewire,
   sdl3,
+  udev,
+  vulkan-loader,
   wayland-protocols,
   writeShellApplication,
   writeText,
@@ -18,6 +28,9 @@
   gnused,
   iproute2,
   unzip,
+  # osu! source to build in place of the pinned raster-sync branch, such as a
+  # local checkout with `builtins.fetchGit`.
+  osuSrc ? null,
   nativeWayland ? true,
   # BASS device update period handed to osu!framework's testing hook, in
   # samples when negative. osu!'s default 10ms period is most of its audio
@@ -39,18 +52,23 @@
   skinsFile ? null,
 }:
 
-# The official AppImage, so score submission and multiplayer keep working: the
-# server checks the MD5 of osu.Game.dll, which is left untouched. Only the
-# bundled libSDL3.so is swapped for one that marks the xdg_toplevel surface as
-# a game and asks the compositor to tear when vsync is off.
+# osu!lazer built from gaavin/osu's raster-sync branch: the 2026.804.2-lazer
+# release plus raster sync, which times every present against the display's
+# scanout so the tear line lands in the blanking interval (Graphics > Raster
+# sync). A build from source has its own osu.Game.dll, so the server does not
+# accept its scores.
+#
+# The bundled libSDL3.so is swapped for one that marks the xdg_toplevel surface
+# as a game and asks the compositor to tear when vsync is off. Raster sync
+# needs those asynchronous flips.
 
 let
   pname = "nix-osu-lazer";
-  inherit (osu-lazer-bin) version src;
+  version = "2026.804.2";
 
-  # ppy.SDL3-CS bindings are generated against one SDL commit, and the release
-  # ships exactly that build. The replacement has to be the same commit, so
-  # the extraction below refuses a release that bundles anything else.
+  # ppy.SDL3-CS bindings are generated against one SDL commit, and the package
+  # ships exactly that build. The replacement has to be the same commit, so the
+  # build refuses an SDL3-CS that bundles anything else.
   sdlRevision = "SDL-3.5.0-f0e99e7";
 
   sdl3-patched = sdl3.overrideAttrs (old: {
@@ -88,19 +106,83 @@ let
     meta = removeAttrs old.meta [ "changelog" ];
   });
 
-  contents = appimageTools.extract {
-    inherit pname version src;
-    postExtract = ''
-      if ! grep -aq '${sdlRevision}' $out/usr/bin/libSDL3.so; then
-        echo "osu! ${version} no longer bundles ${sdlRevision}:" >&2
-        grep -aoE 'SDL-3\.[0-9]+\.[0-9]+-[0-9a-f]+' $out/usr/bin/libSDL3.so >&2 || true
-        echo "update sdlRevision and the SDL src in pkgs/${pname} to that commit." >&2
+  osu = buildDotnetModule rec {
+    pname = "osu-lazer-raster-sync";
+    inherit version;
+
+    src =
+      if osuSrc != null then
+        osuSrc
+      else
+        fetchFromGitHub {
+          owner = "gaavin";
+          repo = "osu";
+          # raster-sync
+          rev = "b01e4c4a307e1a95037249952655d678134abea2";
+          hash = "sha256-YqWbNU3WXDeyrVXJHGOx7c+n3Bpct1CCJM72MzjmINI=";
+        };
+
+    projectFile = "osu.Desktop/osu.Desktop.csproj";
+
+    # nixpkgs' osu-lazer 2026.804.2 lockfile. The branch adds no packages.
+    nugetDeps = ./deps.json;
+
+    dotnet-sdk = dotnetCorePackages.sdk_8_0;
+    dotnet-runtime = dotnetCorePackages.runtime_8_0;
+
+    runtimeDeps = [
+      alsa-lib
+      ffmpeg
+      # Failed to create SDL window. SDL Error: Could not initialize OpenGL / GLES library
+      libglvnd
+      libxi
+      lttng-ust
+      numactl
+      udev
+      vulkan-loader
+    ];
+
+    executables = [ "osu!" ];
+
+    postFixup = ''
+      if ! grep -aq '${sdlRevision}' $out/lib/${pname}/libSDL3.so; then
+        echo "ppy.SDL3-CS no longer bundles ${sdlRevision}:" >&2
+        grep -aoE 'SDL-3\.[0-9]+\.[0-9]+-[0-9a-f]+' $out/lib/${pname}/libSDL3.so >&2 || true
+        echo "update sdlRevision and the SDL src in pkgs/nix-osu-lazer to that commit." >&2
         exit 1
       fi
-      chmod u+w $out/usr/bin
-      rm -f $out/usr/bin/libSDL3.so
-      install -m 555 ${lib.getLib sdl3-patched}/lib/libSDL3.so.0 $out/usr/bin/libSDL3.so
+      ln -sf ${lib.getLib sdl3-patched}/lib/libSDL3.so.0 $out/lib/${pname}/libSDL3.so
     '';
+
+    meta = {
+      license = with lib.licenses; [
+        mit
+        cc-by-nc-40
+        unfreeRedistributable # osu-framework contains libbass.so in repository
+      ];
+      platforms = [ "x86_64-linux" ];
+      mainProgram = "osu!";
+    };
+  };
+
+  desktopItem = makeDesktopItem {
+    name = "osu!";
+    desktopName = "osu!";
+    comment = "A free-to-win rhythm game. Rhythm is just a *click* away!";
+    icon = "osu";
+    exec = "osu! %u";
+    mimeTypes = [
+      "application/x-osu-beatmap-archive"
+      "application/x-osu-skin-archive"
+      "application/x-osu-beatmap"
+      "application/x-osu-storyboard"
+      "application/x-osu-replay"
+      "x-scheme-handler/osu"
+    ];
+    categories = [ "Game" ];
+    startupWMClass = "osu!";
+    startupNotify = true;
+    singleMainWindow = true;
   };
 
   bassDevicePeriodFlag = lib.optionalString (bassDevicePeriod != null) (
@@ -163,7 +245,7 @@ let
 
   optionalPath = file: lib.optionalString (file != null) "${file}";
 
-  # @osu@ is the wrapped AppImage, which only exists in $out.
+  # @osu@ is the wrapped sandbox, which only exists in $out.
   launcher = writeShellApplication {
     name = "osu-launcher";
     runtimeInputs = [
@@ -191,16 +273,18 @@ let
     + builtins.readFile ./launcher.sh;
   };
 in
-appimageTools.wrapAppImage {
-  inherit pname version contents;
+# A sandbox with its own /etc, so the low-latency ALSA plugin can shadow the
+# system's for osu! alone. /dev stays visible, for the DRM vblank timestamps
+# raster sync follows.
+buildFHSEnv {
+  inherit pname version;
 
-  extraPkgs = pkgs: with pkgs; [ icu ];
+  runScript = "${osu}/bin/osu!";
 
   # fix OpenGL renderer on nvidia + wayland
   extraBwrapArgs = [
     "--ro-bind-try /etc/egl/egl_external_platform.d /etc/egl/egl_external_platform.d"
   ]
-  # The sandbox's /etc is a tmpfs, so this shadows only osu!'s view of it.
   ++ lib.optional lowLatencyPipewireAlsa "--ro-bind ${asoundConf} /etc/asound.conf";
 
   extraInstallCommands = ''
@@ -212,9 +296,9 @@ appimageTools.wrapAppImage {
       ${bassDevicePeriodFlag} \
       --set OSU_EXTERNAL_UPDATE_PROVIDER 1
 
-    install -m 444 -D ${contents}/osu!.desktop -t $out/share/applications
+    install -m 444 -D ${desktopItem}/share/applications/*.desktop -t $out/share/applications
     for i in 16 32 48 64 96 128 256 512 1024; do
-      install -D ${contents}/osu.png $out/share/icons/hicolor/''${i}x$i/apps/osu.png
+      install -D ${osu.src}/assets/lazer.png $out/share/icons/hicolor/''${i}x$i/apps/osu.png
     done
 
     mkdir -p $out/libexec
@@ -225,6 +309,7 @@ appimageTools.wrapAppImage {
 
   passthru = {
     inherit
+      osu
       sdl3-patched
       pipewire-alsa-patched
       applySettings
@@ -234,8 +319,10 @@ appimageTools.wrapAppImage {
       ;
   };
 
-  meta = osu-lazer-bin.meta // {
-    description = "osu!lazer official AppImage with declarative settings, beatmaps and skins, presenting on Wayland as a tearing game surface";
+  meta = {
+    description = "osu!lazer built with raster sync (beam-raced presents), declarative settings, beatmaps and skins, presenting on Wayland as a tearing game surface";
+    homepage = "https://github.com/gaavin/nix-osu-lazer";
+    license = osu.meta.license;
     platforms = [ "x86_64-linux" ];
     mainProgram = "osu!";
   };

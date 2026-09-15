@@ -1,5 +1,5 @@
 {
-  description = "osu!lazer on NixOS with declarative settings, beatmaps and skins, presenting as a tearing Wayland game surface";
+  description = "osu!lazer on NixOS with raster sync (beam-raced presents), declarative settings, beatmaps and skins, presenting as a tearing Wayland game surface";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -32,7 +32,7 @@
       };
 
       # Built from the consumer's package set rather than this flake's, so the
-      # AppImage and SDL track whatever osu-lazer-bin the system already has.
+      # .NET SDK, SDL and PipeWire follow the system's nixpkgs.
       overlays.default = final: _prev: {
         nix-osu-lazer = final.callPackage ./pkgs/nix-osu-lazer { };
       };

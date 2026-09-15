@@ -72,15 +72,15 @@ Under **Graphics > Raster sync**. The note under the mode shows the display bein
 | Setting | `game.ini` key | Default | |
 |---|---|---|---|
 | Raster sync | `RasterSyncMode` | `TearlineSync` | `Disabled`, `TearlineSync` (one present per refresh) or `FrameSlices` (several per refresh, with fixed tear lines between slices) |
-| Frame slices per refresh | `RasterFrameSlices` | `4` | 2 to 16, `FrameSlices` mode only |
-| Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of the longest recent frame |
+| Frame slices per refresh | `RasterFrameSlices` | `4` | 2 to 16, `FrameSlices` mode only. The most slices per refresh: fewer are used while frames take too long to fill every slice |
+| Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of recent render times (99th percentile of the last 1024 presents) |
 | Show tear line indicator | `RasterShowTearline` | `false` | Strip on the right edge that alternates colour every present |
 
 The tear line offset is automatic. osu! measures how long the compositor takes to flip each frame and steers the tear line into the blanking interval during a play. Finished plays are stored in `~/.local/share/osu/raster-sync-flips.json` and seed the next play. **Forget recorded flips** clears them.
 
 ### Checking the tear line
 
-Turn on **Show tear line indicator**. Where a tear line crosses the strip, it shows both colours. With the tear line in blanking the strip flickers evenly with no split. The note under the checkbox shows the current steering target.
+Turn on **Show tear line indicator**. Where a tear line crosses the strip, it shows both colours. With the tear line in blanking the strip flickers evenly with no split. With frame slices, neighbouring slices should always differ in colour; bands two or three slices tall mean frames are missing slices. The status note shows how many slices are in use, and how many timed frames the next frame overtook before they flipped. The note under the checkbox shows the current steering target.
 
 With several displays lit, pick the one osu! is on:
 
@@ -181,6 +181,8 @@ grep 'Raster sync' ~/.local/share/osu/logs/runtime.log
 | Issue | Fix |
 |---|---|
 | Tear line visible or jumping | Raise **Render headroom** and check the late count in the status note. Check the steering note under **Show tear line indicator**. |
+| Fewer slices in use than set | Frames take longer than a slice to render and swap. Lower **Render headroom** or accept the lower count. |
+| Status reports overtaken frames | The compositor is not flipping frames before the next arrives. Lower **Frame slices per refresh**. |
 | Steering note says flips are held for vblank | The compositor is not tearing. Use fullscreen and make sure nothing overlaps the game. |
 | Status asks about variable refresh rate | Turn off Adaptive Sync for the display. |
 | Status says a device cannot be opened | Log in at the seat or join the `video` group. |

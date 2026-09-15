@@ -194,6 +194,7 @@ grep 'Raster sync' ~/.local/share/osu/logs/runtime.log
 
 - [ppy/osu](https://github.com/ppy/osu)
 - [Blur Busters](https://blurbusters.com): beam racing and lagless VSync
+- vestaia from thePooN's Discord server: pipewire-alsa patches
 - [libsdl-org/SDL](https://github.com/libsdl-org/SDL)
 - [nixpkgs `osu-lazer`](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/os/osu-lazer/package.nix)
 - [gaavin/nix-osu-stable](https://github.com/gaavin/nix-osu-stable)

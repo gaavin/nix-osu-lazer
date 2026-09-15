@@ -205,5 +205,6 @@ A new release can also add settings or change their defaults. Refresh `factory-g
 
 - [ppy/osu](https://github.com/ppy/osu): osu!lazer
 - [libsdl-org/SDL](https://github.com/libsdl-org/SDL)
+- vestaia from thePooN's Discord server: pipewire-alsa patches
 - [NixOS/nixpkgs `osu-lazer-bin`](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/os/osu-lazer-bin/package.nix): the AppImage packaging this builds on
 - [gaavin/nix-osu-stable](https://github.com/gaavin/nix-osu-stable): the beatmap mirror downloader and settings merge this adapts

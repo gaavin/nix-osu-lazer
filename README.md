@@ -146,7 +146,7 @@ nix run github:gaavin/nix-osu-lazer/raster-sync
 }
 ```
 
-The package builds with your own nixpkgs' .NET 8 SDK, SDL and PipeWire. The osu! version is pinned by the branch. Like `osu-lazer`, it needs `nixpkgs.config.allowUnfree = true` (BASS). The overlay is optional for the module, which builds the package from your `pkgs` either way.
+The package builds with your own nixpkgs' .NET 10 SDK, SDL and PipeWire. The osu! version is pinned by the branch. Like `osu-lazer`, it needs `nixpkgs.config.allowUnfree = true` (BASS). The overlay is optional for the module, which builds the package from your `pkgs` either way.
 
 ### 2. Enable it
 

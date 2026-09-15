@@ -52,10 +52,10 @@
   skinsFile ? null,
 }:
 
-# osu!lazer built from gaavin/osu's raster-sync branch: the 2026.804.2-lazer
-# release plus raster sync, which times every present against the display's
-# scanout so the tear line lands in the blanking interval (Graphics > Raster
-# sync). A build from source has its own osu.Game.dll, so the server does not
+# osu!lazer built from gaavin/osu's raster-sync branch: ppy/osu master as of
+# 2026-09-15 (after 2026.911.0-tachyon) plus raster sync, which times every
+# present against the display's scanout so the tear line lands in the blanking
+# interval (Graphics > Raster sync). A build from source has its own osu.Game.dll, so the server does not
 # accept its scores.
 #
 # The bundled libSDL3.so is swapped for one that marks the xdg_toplevel surface
@@ -64,21 +64,21 @@
 
 let
   pname = "nix-osu-lazer";
-  version = "2026.804.2";
+  version = "2026.911.0-unstable-2026-09-15";
 
   # ppy.SDL3-CS bindings are generated against one SDL commit, and the package
   # ships exactly that build. The replacement has to be the same commit, so the
   # build refuses an SDL3-CS that bundles anything else.
-  sdlRevision = "SDL-3.5.0-f0e99e7";
+  sdlRevision = "SDL-3.5.0-a8591d9";
 
   sdl3-patched = sdl3.overrideAttrs (old: {
-    version = "3.5.0-unstable-2026-06-28";
+    version = "3.5.0-unstable-2026-07-20";
 
     src = fetchFromGitHub {
       owner = "libsdl-org";
       repo = "SDL";
-      rev = "f0e99e7c7f9aa90d5ce2e3b8a69f72c23faf257e";
-      hash = "sha256-sRas/PqkNkulfY/ybsUfRezrrSPTOMJ6AwktaMrpNVM=";
+      rev = "a8591d943b7079b17fdd018dc04ec9c71dc94ae4";
+      hash = "sha256-bPx7bsdEMl6bMiwZ8QIi4P5YxAjevTci/A+9wx/Ej/g=";
     };
 
     patches = (old.patches or [ ]) ++ [
@@ -118,17 +118,17 @@ let
           owner = "gaavin";
           repo = "osu";
           # raster-sync
-          rev = "2a0d5260c7ce21332d1afc9d4c8e4ab432b23c47";
-          hash = "sha256-99NanDpDZIVovl4moruXnaRhmHTjDILoy3ctQTfKLcQ=";
+          rev = "37ff32735fa9756432de33005efa53a0ee1f06c0";
+          hash = "sha256-cuzEKDRyDGkjE2pItYP6WGgqdQiTGU/E97BrqXIkWzA=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";
 
-    # nixpkgs' osu-lazer 2026.804.2 lockfile. The branch adds no packages.
+    # Generated from the branch with `nix build .#default.osu.fetch-deps`.
     nugetDeps = ./deps.json;
 
-    dotnet-sdk = dotnetCorePackages.sdk_8_0;
-    dotnet-runtime = dotnetCorePackages.runtime_8_0;
+    dotnet-sdk = dotnetCorePackages.sdk_10_0;
+    dotnet-runtime = dotnetCorePackages.runtime_10_0;
 
     runtimeDeps = [
       alsa-lib

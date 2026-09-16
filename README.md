@@ -181,7 +181,7 @@ grep 'Raster sync' ~/.local/share/osu/logs/runtime.log
 | Issue | Fix |
 |---|---|
 | Tear line visible or jumping | Raise **Render headroom** and check the late count in the status note. Check the steering note under **Show tear line indicator**. |
-| Fewer slices in use than set | Frames take longer than a slice to render and swap. The runtime log line for the change says which part took the time. Lower **Render headroom** or accept the lower count. |
+| Fewer slices in use than set | Frames take longer than a slice to render and swap. The runtime log line for the change says which part took the time. Lower **Render headroom** or accept the lower count. A count is dropped as soon as it stops fitting, and only raised once a frame fits in 90% of a slice for two seconds, so a frame time near a slice boundary holds the lower count rather than flapping. |
 | Status reports overtaken frames | The compositor is not flipping frames before the next arrives. Lower **Frame slices per refresh**. |
 | Steering note says flips are held for vblank | The compositor is not tearing. Use fullscreen and make sure nothing overlaps the game. |
 | Status asks about variable refresh rate | Turn off Adaptive Sync for the display. |

@@ -71,7 +71,7 @@ Under **Graphics > Raster sync**. The note under the mode shows the display bein
 
 | Setting | `game.ini` key | Default | |
 |---|---|---|---|
-| Raster sync | `RasterSyncMode` | `TearlineSync` | `Disabled`, `TearlineSync` (one present per refresh) or `FrameSlices` (several per refresh, with fixed tear lines between slices) |
+| Raster sync | `RasterSyncMode` | `TearlineSync` | `Disabled`, `TearlineSync` (one present per refresh), `FrameSlices` (several per refresh, with fixed tear lines between slices) or `CursorChasing` (`TearlineSync` plus a tear line just above the cursor) |
 | Frame slices per refresh | `RasterFrameSlices` | `4` | 2 to 16, `FrameSlices` mode only. The most slices per refresh: fewer are used while frames take too long to fill every slice |
 | Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of recent render times. How much of the recent spread is covered steers itself, so about 2% of frames finish late and the rest start as late, and show a scene as new, as they can. The steering absorbs this setting: plays from 0 to 0.25 ms measured the same margin, the same share finishing late and the same latency, so 0 is a fine place to leave it |
 | Show tear line indicator | `RasterShowTearline` | `false` | Strip down the left edge, coloured by frame slice (or by present outside `FrameSlices`) |
@@ -158,9 +158,9 @@ OSU_POINTER_LATCH=draw osu!   # moved as the scene draws it, without a tear line
 
 ### A tear line for the cursor
 
-During a timed play, each refresh gets one more tear line, just above the cursor, and the cursor is drawn last on that present: after the rest of the frame has finished on the GPU, at the newest pen report. Measured in play, a report reaches the present 0.04 ms after it is taken, against 0.72 ms moving the cursor as the scene draws it. The rest of the frame is unchanged, so only that one present per refresh does the extra work.
+With **Raster sync** on **Cursor chasing**, each refresh gets one more tear line, just above the cursor, and the cursor is drawn last on that present: after the rest of the frame has finished on the GPU, at the newest pen report. Measured in play, a report reaches the present 0.04 ms after it is taken, against 0.72 ms moving the cursor as the scene draws it. The rest of the frame is unchanged, so only that one present per refresh does the extra work.
 
-Use it with **Lagless VSync**, where it makes two presents a refresh: the one in the blanking interval and the cursor's. That felt far better than frame slices, where the cursor's present crowded out 1.6 slices a refresh and pacing was uneven. The blanking interval's present is never given up: a cursor low on the screen has its tear line pulled up far enough for a whole frame to fit before the blanking interval's, and a cursor high on the screen is drawn on the blanking interval's present instead.
+It is Lagless VSync's present in the blanking interval plus the cursor's: two presents a refresh. It felt far better than the same tear line alongside frame slices, where the cursor's present crowded out 1.6 slices a refresh and pacing was uneven, so it is a mode of its own and Lagless VSync is unchanged. The blanking interval's present is never given up: a cursor low on the screen has its tear line pulled up far enough for a whole frame to fit before the blanking interval's, and a cursor high on the screen is drawn on the blanking interval's present instead.
 
 ```bash
 OSU_CURSOR_TEARLINE_LEAD=32 osu!    # scanlines between the tear line and the top of the cursor

@@ -152,8 +152,23 @@ The default is off, because measured in play it made scenes older: 1.61 ms at pr
 The gameplay cursor is drawn where the pen is when the frame is drawn, not where it was when the update frame read input: each report is seen as it leaves OpenTabletDriver, and the draw moves the cursor by however far the pen has travelled since. Only a cursor sitting on one of the pen's recent reports is moved, so replays, autoplay and mice are left alone. Hits are still judged where the update frame had the cursor, and the trail follows update frames. To turn it off:
 
 ```bash
-OSU_POINTER_LATCH=0 osu!
+OSU_POINTER_LATCH=0 osu!      # off
+OSU_POINTER_LATCH=draw osu!   # moved as the scene draws it, without a tear line of its own
 ```
+
+### A tear line for the cursor
+
+During a timed play, each refresh gets one more tear line, just above the cursor, and the cursor is drawn last on that present: after the rest of the frame has finished on the GPU, at the newest pen report. Measured in play, a report reaches the present 0.04 ms after it is taken, against 0.72 ms moving the cursor as the scene draws it. The rest of the frame is unchanged, so only that one present per refresh does the extra work.
+
+Use it with **Lagless VSync**, where it makes two presents a refresh: the one in the blanking interval and the cursor's. That felt far better than frame slices, where the cursor's present crowded out 1.6 slices a refresh and pacing was uneven. The blanking interval's present is never given up: a cursor low on the screen has its tear line pulled up far enough for a whole frame to fit before the blanking interval's, and a cursor high on the screen is drawn on the blanking interval's present instead.
+
+```bash
+OSU_CURSOR_TEARLINE_LEAD=32 osu!    # scanlines between the tear line and the top of the cursor
+OSU_CURSOR_TEARLINE_BANDS=7 osu!    # hold the tear line to 7 positions a refresh instead of following the cursor
+OSU_POINTER_LATCH_WAIT_GPU=1 osu!   # wait for the GPU to finish the cursor before presenting
+```
+
+A tear line that moves still costs some pacing: each band of the screen it passes over changes from the blanking interval's frame to the cursor's, a one-off step of up to half a refresh.
 
 ### Measurements
 
@@ -163,7 +178,7 @@ The `Raster sync` log lines, and everything measured for them, are only built in
 programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { rasterMetrics = true; };
 ```
 
-With them, `Raster sync cursor:` gives the pen's report rate and spacing, how often update frames had the cursor on the pen, how far draws moved it, how old the newest report was when drawn and how long after that the frame was presented.
+With them, `Raster sync pacing:` gives, for 8 bands of scanlines, how far the scene shown there stepped from exactly one refresh to the next, which is frame pacing as it reaches the screen; `Raster sync cursor:` gives the pen's report rate and spacing, how often update frames had the cursor on the pen, how far draws moved it, how old the newest report was when drawn and how long after that the frame was presented.
 
 ## Declarative config
 

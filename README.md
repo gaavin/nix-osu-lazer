@@ -138,14 +138,32 @@ The default is `0.02`. The status note and the log both show the margin and the 
 
 ### How old the scene is when drawing starts
 
-A frame shows input and time as they were when the update frame that built its scene started, and that scene is older than the render margin alone: it took an update frame to build, then waited for the draw thread to wake. With the frame limiter lifted during a play the update thread used to run flat out with nothing lining it up with the draw, so that wait was anything up to another update frame. Update frames are now timed to finish just before the draw thread wakes for them, while frames that would finish before the timed one still run, so input and hits are processed as often as before:
+A frame shows input and time as they were when the update frame that built its scene started, and that scene is older than the render margin alone: it took an update frame to build, then waited for the draw thread to wake. With the frame limiter lifted during a play the update thread used to run flat out with nothing lining it up with the draw, so that wait was anything up to another update frame. Update frames can be timed to finish just before the draw thread wakes for them:
 
 ```bash
+OSU_RASTER_UPDATE_SYNC=fill osu!      # timed, with frames that would finish earlier still run
 OSU_RASTER_UPDATE_SYNC=aligned osu!   # only the timed frame, one update per present
-OSU_RASTER_UPDATE_SYNC=off osu!       # free running, as before
 ```
 
-The default is `fill`. A fourth log line per second, `Raster sync update:`, gives the scene's age at present and at draw start, how long drawn update frames took and sat before the draw woke, and how often a draw had to wait for its update frame, which is what a timed frame overrunning costs. Running with `off` first gives the baseline.
+The default is off, because measured in play it made scenes older: 1.61 ms at present against 1.26 ms running free. Frames were aimed to finish in time at their slowest percent, so the typical one finished half a millisecond early, and a finished scene only ever sat 0.17 ms before the draw woke. The `Raster sync update:` log line gives the scene's age at present and at draw start.
+
+### The cursor at the newest pen report
+
+The gameplay cursor is drawn where the pen is when the frame is drawn, not where it was when the update frame read input: each report is seen as it leaves OpenTabletDriver, and the draw moves the cursor by however far the pen has travelled since. Only a cursor sitting on one of the pen's recent reports is moved, so replays, autoplay and mice are left alone. Hits are still judged where the update frame had the cursor, and the trail follows update frames. To turn it off:
+
+```bash
+OSU_POINTER_LATCH=0 osu!
+```
+
+### Measurements
+
+The `Raster sync` log lines, and everything measured for them, are only built in on request, since measuring costs the draw thread time on every frame:
+
+```nix
+programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { rasterMetrics = true; };
+```
+
+With them, `Raster sync cursor:` gives the pen's report rate and spacing, how often update frames had the cursor on the pen, how far draws moved it, how old the newest report was when drawn and how long after that the frame was presented.
 
 ## Declarative config
 
@@ -221,7 +239,7 @@ WAYLAND_DEBUG=client "$tests/libexec/installed-tests/SDL3/testgl" 2>&1 \
 
 Expect `set_content_type(3)` and `set_presentation_hint(1)`.
 
-Raster sync log:
+Raster sync log, in a build with `rasterMetrics = true`:
 
 ```bash
 grep 'Raster sync' ~/.local/share/osu/logs/runtime.log

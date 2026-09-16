@@ -32,6 +32,9 @@
   # local checkout with `builtins.fetchGit`.
   osuSrc ? null,
   nativeWayland ? true,
+  # Build in the raster sync measurements and their per-second log lines. They
+  # cost the draw thread time on every frame, so only turn this on to measure.
+  rasterMetrics ? false,
   # BASS device update period handed to osu!framework's testing hook, in
   # samples when negative. osu!'s default 10ms period is most of its audio
   # latency; 128 samples keeps pace with a 128-sample PipeWire quantum. null
@@ -118,11 +121,13 @@ let
           owner = "gaavin";
           repo = "osu";
           # render-latency
-          rev = "77e7d4714b75cab30c051d1a5a59c7b950c695e6";
-          hash = "sha256-JgfMqU3KN6wk6M6S6VfQWgWIjjriTH1/KvRnPPkeVYE=";
+          rev = "8aa94da6b93d98b4ad107b014244d57e818edd6e";
+          hash = "sha256-zsfeMjlw8o6y+HNfIg9E2PdG57Cb8oMtz5K6PyKjNPM=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";
+
+    dotnetFlags = lib.optional rasterMetrics "-p:RasterMetrics=true";
 
     # Generated from the branch with `nix build .#default.osu.fetch-deps`.
     nugetDeps = ./deps.json;

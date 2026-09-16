@@ -104,6 +104,16 @@ While a play is paced, the collection that is due is held back until the gap bef
 OSU_RASTER_GC_PACING=0 osu!
 ```
 
+### How quickly the slice count climbs
+
+More slices mean each frame is aimed at a nearer scanline, so it shows a newer scene: the whole of the gap between presents is frame age. A refresh is split into more of them once a frame fits inside 90% of one and keeps fitting for a while, and the count drops the moment one stops fitting. Measured in play, the count sat a slice below what the frame times allowed for about half of every second, because a single present that failed to qualify threw the whole wait away. A dip now only pauses it. Both timings can be set for a play:
+
+```bash
+OSU_RASTER_SLICE_RAISE_MS=1000 OSU_RASTER_SLICE_GRACE_MS=250 osu!
+```
+
+Those are the defaults; `2000` and `0` restore the behaviour from before. Raising faster with more grace gives lower latency, and pays for it with tear lines that move between counts more often. The log says each second what the count was decided on, and what a looser rule would have permitted.
+
 ## Declarative config
 
 ```nix

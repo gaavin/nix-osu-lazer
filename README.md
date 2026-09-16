@@ -114,13 +114,15 @@ OSU_RASTER_SLICE_RAISE_MS=1000 OSU_RASTER_SLICE_GRACE_MS=250 osu!
 
 Those are the defaults; `2000` and `0` restore the behaviour from before. Measured in play, though, how quickly it climbs turns out to matter little: it changed how often the count sat below what the frames allowed, from 57% of seconds to 45%, while leaving the count itself at 3.7 of a possible 7 either way.
 
-What actually limits the count is how strict the fit has to be. A refresh is split into as many slices as all but the slowest 0.1% of frames fit inside, and in play that allows four, where all but the slowest 1% would allow six — a difference of one frame in a thousand, and about 0.58 ms of frame age. To spend it:
+What actually limits the count is how strict the fit has to be: a refresh is split into as many slices as all but the slowest 1% of frames fit inside. Measured on one map, judging it on the slowest 1% rather than the slowest 0.1% took the count from 3.7 slices to 6.3, and the gap between presents — which is how old a frame is by the time it is scanned out — from 1.88 ms to 1.11 ms. It is paid for in slices that go without a frame of their own, which rose from 0.3 a second to 7.2, still under one slice in a hundred.
+
+To go back to judging it on the slowest tenth of a percent:
 
 ```bash
-OSU_RASTER_SLICE_FIT=0.99 osu!
+OSU_RASTER_SLICE_FIT=0.999 osu!
 ```
 
-The default is `0.999`. A looser rule means more slices and newer frames, paid for in slices that go without a frame of their own — which reads as uneven pacing rather than as latency, so watch the skipped slices in the log or in the status note under the setting.
+The default is `0.99`. Stricter means steadier tear lines and older frames; looser means the reverse, and the skipped slices in the log and in the status note are what it spends.
 
 ## Declarative config
 

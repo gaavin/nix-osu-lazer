@@ -117,9 +117,9 @@ let
         fetchFromGitHub {
           owner = "gaavin";
           repo = "osu";
-          # raster-sync
-          rev = "ae69c9608b55cebb29d23b4c12dbc15c8e3ad40c";
-          hash = "sha256-OCVwqY9e4Ucyq7I9Xwl428MyOfE09D8aDK/orQKmF2k=";
+          # render-latency
+          rev = "77e7d4714b75cab30c051d1a5a59c7b950c695e6";
+          hash = "sha256-JgfMqU3KN6wk6M6S6VfQWgWIjjriTH1/KvRnPPkeVYE=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";

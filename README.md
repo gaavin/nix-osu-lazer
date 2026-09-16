@@ -136,6 +136,17 @@ OSU_RASTER_LATE_TARGET=0.05 osu!
 
 The default is `0.02`. The status note and the log both show the margin and the share finishing late, so the two can be watched against each other.
 
+### How old the scene is when drawing starts
+
+A frame shows input and time as they were when the update frame that built its scene started, and that scene is older than the render margin alone: it took an update frame to build, then waited for the draw thread to wake. With the frame limiter lifted during a play the update thread used to run flat out with nothing lining it up with the draw, so that wait was anything up to another update frame. Update frames are now timed to finish just before the draw thread wakes for them, while frames that would finish before the timed one still run, so input and hits are processed as often as before:
+
+```bash
+OSU_RASTER_UPDATE_SYNC=aligned osu!   # only the timed frame, one update per present
+OSU_RASTER_UPDATE_SYNC=off osu!       # free running, as before
+```
+
+The default is `fill`. A fourth log line per second, `Raster sync update:`, gives the scene's age at present and at draw start, how long drawn update frames took and sat before the draw woke, and how often a draw had to wait for its update frame, which is what a timed frame overrunning costs. Running with `off` first gives the baseline.
+
 ## Declarative config
 
 ```nix

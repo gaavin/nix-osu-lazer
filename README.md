@@ -112,7 +112,15 @@ More slices mean each frame is aimed at a nearer scanline, so it shows a newer s
 OSU_RASTER_SLICE_RAISE_MS=1000 OSU_RASTER_SLICE_GRACE_MS=250 osu!
 ```
 
-Those are the defaults; `2000` and `0` restore the behaviour from before. Raising faster with more grace gives lower latency, and pays for it with tear lines that move between counts more often. The log says each second what the count was decided on, and what a looser rule would have permitted.
+Those are the defaults; `2000` and `0` restore the behaviour from before. Measured in play, though, how quickly it climbs turns out to matter little: it changed how often the count sat below what the frames allowed, from 57% of seconds to 45%, while leaving the count itself at 3.7 of a possible 7 either way.
+
+What actually limits the count is how strict the fit has to be. A refresh is split into as many slices as all but the slowest 0.1% of frames fit inside, and in play that allows four, where all but the slowest 1% would allow six — a difference of one frame in a thousand, and about 0.58 ms of frame age. To spend it:
+
+```bash
+OSU_RASTER_SLICE_FIT=0.99 osu!
+```
+
+The default is `0.999`. A looser rule means more slices and newer frames, paid for in slices that go without a frame of their own — which reads as uneven pacing rather than as latency, so watch the skipped slices in the log or in the status note under the setting.
 
 ## Declarative config
 

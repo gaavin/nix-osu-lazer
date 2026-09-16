@@ -80,13 +80,23 @@ The tear line offset is automatic. osu! measures how long the compositor takes t
 
 ### Checking the tear line
 
-Turn on **Show tear line indicator**. Where a tear line crosses the strip, it shows both colours. With the tear line in blanking the strip flickers evenly with no split. With frame slices, the strip is coloured by slice instead, so it holds still: neighbouring slices differ in colour, except the top and bottom ones with an odd number of slices. A band two slices tall means a slice got no frame of its own. The status note shows how many slices are in use, how many were skipped, and how many timed frames the next frame overtook before they flipped. While playing, the runtime log (`~/.local/share/osu/logs/*.runtime.log`) gets the same numbers every second, followed by a line of timings at p50/p99/max: render, split into the draw thread's own work and its wait for the GPU, then how late the draw thread woke, the swap call, the rest of the frame loop, and how late presents started. Another line says where a frame's time went whenever the slice count changes. The note under the checkbox shows the current steering target.
+Turn on **Show tear line indicator**. Where a tear line crosses the strip, it shows both colours. With the tear line in blanking the strip flickers evenly with no split. With frame slices, the strip is coloured by slice instead, so it holds still: neighbouring slices differ in colour, except the top and bottom ones with an odd number of slices. A band two slices tall means a slice got no frame of its own. The status note shows how many slices are in use, how many were skipped, and how many timed frames the next frame overtook before they flipped. While playing, the runtime log (`~/.local/share/osu/logs/*.runtime.log`) gets the same numbers every second, followed by a line of timings at p50/p99/max: render, split into the draw thread's own work and its wait for the GPU, then how late the draw thread woke, the swap call, the rest of the frame loop, and how late presents started. Another line says where a frame's time went whenever the slice count changes. A third counts the collections that ran in each part of a present — while the draw thread slept, or while it was drawing, waiting for the GPU, waiting for the scanline or swapping — with the pause the runtime reports for them and how much was allocated to earn each one. The note under the checkbox shows the current steering target.
 
 With several displays lit, pick the one osu! is on:
 
 ```bash
 OSU_RASTER_DRM_DEVICE=/dev/dri/card1 OSU_RASTER_CRTC=<id> osu!
 ```
+
+### Choosing how gameplay collects garbage
+
+Gameplay puts the runtime in `LowLatency`, which holds the gen0 budget at 256 KiB however large it is asked to be: short pauses, but many times more of them, and each one that lands mid-draw delays a frame. To try letting gen0 grow instead:
+
+```bash
+OSU_GAMEPLAY_GC_MODE=Interactive osu!
+```
+
+Takes `LowLatency` (the default, unchanged), `Interactive` or `SustainedLowLatency`, and the log says which one a play started with. `DOTNET_GCgen0size` (hex bytes) only does anything in the latter two, since `LowLatency` overrides it.
 
 ## Declarative config
 

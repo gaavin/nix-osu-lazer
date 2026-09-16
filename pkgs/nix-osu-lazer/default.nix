@@ -121,8 +121,8 @@ let
           owner = "gaavin";
           repo = "osu";
           # render-latency
-          rev = "8aa94da6b93d98b4ad107b014244d57e818edd6e";
-          hash = "sha256-zsfeMjlw8o6y+HNfIg9E2PdG57Cb8oMtz5K6PyKjNPM=";
+          rev = "d9200537078f0ae408138afe2464ae4129708b39";
+          hash = "sha256-DvC5H2m87NcDPgOaVZUsldrK1mfCJUpSKD4AcDxmfBc=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";

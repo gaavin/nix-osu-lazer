@@ -73,7 +73,7 @@ Under **Graphics > Raster sync**. The note under the mode shows the display bein
 |---|---|---|---|
 | Raster sync | `RasterSyncMode` | `TearlineSync` | `Disabled`, `TearlineSync` (one present per refresh) or `FrameSlices` (several per refresh, with fixed tear lines between slices) |
 | Frame slices per refresh | `RasterFrameSlices` | `4` | 2 to 16, `FrameSlices` mode only. The most slices per refresh: fewer are used while frames take too long to fill every slice |
-| Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of recent render times. How much of the recent spread is covered steers itself, so about 2% of frames finish late and the rest start as late, and show a scene as new, as they can |
+| Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of recent render times. How much of the recent spread is covered steers itself, so about 2% of frames finish late and the rest start as late, and show a scene as new, as they can. The steering absorbs this setting: plays from 0 to 0.25 ms measured the same margin, the same share finishing late and the same latency, so 0 is a fine place to leave it |
 | Show tear line indicator | `RasterShowTearline` | `false` | Strip down the left edge, coloured by frame slice (or by present outside `FrameSlices`) |
 
 The tear line offset is automatic. osu! measures how long the compositor takes to flip each frame and steers the tear line into the blanking interval during a play. Finished plays are stored in `~/.local/share/osu/raster-sync-flips.json` and seed the next play. **Forget recorded flips** clears them.

@@ -90,13 +90,19 @@ OSU_RASTER_DRM_DEVICE=/dev/dri/card1 OSU_RASTER_CRTC=<id> osu!
 
 ### Choosing how gameplay collects garbage
 
-Gameplay puts the runtime in `LowLatency`, which holds the gen0 budget at 256 KiB however large it is asked to be: short pauses, but many times more of them, and each one that lands mid-draw delays a frame. To try letting gen0 grow instead:
+Gameplay leaves the gen0 budget alone, so it grows to about 16 MB and collects a fifth of a time a second. osu! asks for `LowLatency` upstream, which instead pins the budget at 256 KiB however large it is asked to be: measured in a play, that is 15.7 collections a second pausing 0.61 ms each, against 0.2 a second. Leaving it alone measured fourteen times less pause time, 0.19 ms off the margin a frame starts on, and a whole extra frame slice per refresh, with nothing finishing late. To go back for a play:
 
 ```bash
-OSU_GAMEPLAY_GC_MODE=Interactive osu!
+OSU_GAMEPLAY_GC_MODE=LowLatency osu!
 ```
 
-Takes `LowLatency` (the default, unchanged), `Interactive` or `SustainedLowLatency`, and the log says which one a play started with. `DOTNET_GCgen0size` (hex bytes) only does anything in the latter two, since `LowLatency` overrides it.
+Takes `Interactive` (the default), `SustainedLowLatency` or `LowLatency`, and the log says which one a play started with. `DOTNET_GCgen0size` (hex bytes) only does anything in the first two, since `LowLatency` overrides it.
+
+While a play is paced, the collection that is due is held back until the gap before a frame starts drawing, where it delays nothing already on its way to the screen. A collection lasts longer than that gap, so the present it precedes is aimed a slice or two further down the screen to make room, giving up a slice roughly every five seconds. Those are counted apart from skipped slices, which are uneven pacing rather than a choice. To leave collections where they fall:
+
+```bash
+OSU_RASTER_GC_PACING=0 osu!
+```
 
 ## Declarative config
 

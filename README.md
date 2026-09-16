@@ -124,6 +124,18 @@ OSU_RASTER_SLICE_FIT=0.999 osu!
 
 The default is `0.99`. Stricter means steadier tear lines and older frames; looser means the reverse, and the skipped slices in the log and in the status note are what it spends.
 
+Note that the count cannot pass **Frame slices per refresh** in the settings, and in play it now reaches it, so that slider is worth raising past its default before anything else is tuned.
+
+### How late a frame is allowed to be
+
+A frame is drawn as late as its measured render time allows, so the scene it shows is as new as possible, and how late that is steers itself: the prediction is pushed down until about 2% of frames finish after their scanline. That margin is the half of frame age the slice count does not decide — measured in play, 0.79 ms of margin against a 1.09 ms gap between presents. Letting more frames finish late shaves the margin, and pays for it in tear lines landing past the scanline they were aimed at:
+
+```bash
+OSU_RASTER_LATE_TARGET=0.05 osu!
+```
+
+The default is `0.02`. The status note and the log both show the margin and the share finishing late, so the two can be watched against each other.
+
 ## Declarative config
 
 ```nix

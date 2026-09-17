@@ -120,7 +120,7 @@ let
         fetchFromGitHub {
           owner = "gaavin";
           repo = "osu";
-          # render-latency
+          # raster-sync
           rev = "ea925f857083ed1bad28a32d249c875ed4fc0617";
           hash = "sha256-pgzQfWTFsRr9DKKf1rumD2EXn8aru+CkfVF5h+Fky6g=";
         };

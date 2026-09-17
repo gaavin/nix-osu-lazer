@@ -58,8 +58,9 @@
 # osu!lazer built from gaavin/osu's raster-sync branch: ppy/osu master as of
 # 2026-09-15 (after 2026.911.0-tachyon) plus raster sync, which times every
 # present against the display's scanout so the tear line lands in the blanking
-# interval (Graphics > Raster sync). A build from source has its own osu.Game.dll, so the server does not
-# accept its scores.
+# interval (Graphics > Raster sync), and draws the gameplay cursor at the newest
+# pen report as the frame is presented. A build from source has its own
+# osu.Game.dll, so the server does not accept its scores.
 #
 # The bundled libSDL3.so is swapped for one that marks the xdg_toplevel surface
 # as a game and asks the compositor to tear when vsync is off. Raster sync
@@ -67,7 +68,7 @@
 
 let
   pname = "nix-osu-lazer";
-  version = "2026.911.0-unstable-2026-09-15";
+  version = "2026.911.0-unstable-2026-09-16";
 
   # ppy.SDL3-CS bindings are generated against one SDL commit, and the package
   # ships exactly that build. The replacement has to be the same commit, so the

@@ -59,7 +59,7 @@
 # 2026-09-15 (after 2026.911.0-tachyon) plus raster sync, which times every
 # present against the display's scanout so the tear line lands in the blanking
 # interval (Graphics > Raster sync), and draws the gameplay cursor at the newest
-# pen report as the frame is presented. A build from source has its own
+# pen or mouse report as the frame is presented. A build from source has its own
 # osu.Game.dll, so the server does not accept its scores.
 #
 # The bundled libSDL3.so is swapped for one that marks the xdg_toplevel surface
@@ -68,7 +68,7 @@
 
 let
   pname = "nix-osu-lazer";
-  version = "2026.911.0-unstable-2026-09-16";
+  version = "2026.911.0-unstable-2026-09-17";
 
   # ppy.SDL3-CS bindings are generated against one SDL commit, and the package
   # ships exactly that build. The replacement has to be the same commit, so the
@@ -122,8 +122,8 @@ let
           owner = "gaavin";
           repo = "osu";
           # raster-sync
-          rev = "ea925f857083ed1bad28a32d249c875ed4fc0617";
-          hash = "sha256-pgzQfWTFsRr9DKKf1rumD2EXn8aru+CkfVF5h+Fky6g=";
+          rev = "8807e5cc11a40b0a8799a61114ea516aeb019eb2";
+          hash = "sha256-p6esRotg09bqbyeXKmBrXRNXl28RnR0JQps8kURZGlU=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";

@@ -147,9 +147,9 @@ OSU_RASTER_UPDATE_SYNC=aligned osu!   # only the timed frame, one update per pre
 
 The default is off, because measured in play it made scenes older: 1.61 ms at present against 1.26 ms running free. Frames were aimed to finish in time at their slowest percent, so the typical one finished half a millisecond early, and a finished scene only ever sat 0.17 ms before the draw woke. The `Raster sync update:` log line gives the scene's age at present and at draw start.
 
-### The cursor at the newest pen report
+### The cursor at the newest pointer report
 
-The gameplay cursor is drawn where the pen is when the frame is drawn, not where it was when the update frame read input: each report is seen as it leaves OpenTabletDriver, and the draw moves the cursor by however far the pen has travelled since. Only a cursor sitting on one of the pen's recent reports is moved, so replays, autoplay and mice are left alone. Hits are still judged where the update frame had the cursor, and the trail follows update frames. To turn it off:
+The gameplay cursor is drawn where the pointer is when the frame is drawn, not where it was when the update frame read input: each report is seen on its way to the input handler that queues it, and the draw moves the cursor by however far the pointer has travelled since. The pen's reports are taken as they leave OpenTabletDriver, so they are as new as the tablet sends them; the mouse's are taken from the window as it polls SDL, which is where the mouse handler reads them. Only a cursor sitting on one of a device's recent reports is moved, and only that device moves it, so replays and autoplay are left alone and a pen resting on the tablet never pulls a cursor the mouse is driving. Hits are still judged where the update frame had the cursor, and the trail follows update frames. To turn it off:
 
 ```bash
 OSU_POINTER_LATCH=0 osu!      # off
@@ -158,7 +158,7 @@ OSU_POINTER_LATCH=draw osu!   # moved as the scene draws it, without a tear line
 
 ### A tear line for the cursor
 
-With **Raster sync** on **Cursor chasing**, each refresh gets one more tear line, just above the cursor, and the cursor is drawn last on that present: after the rest of the frame has finished on the GPU, at the newest pen report. Measured in play, a report reaches the present 0.04 ms after it is taken, against 0.72 ms moving the cursor as the scene draws it. The rest of the frame is unchanged, so only that one present per refresh does the extra work.
+With **Raster sync** on **Cursor chasing**, each refresh gets one more tear line, just above the cursor, and the cursor is drawn last on that present: after the rest of the frame has finished on the GPU, at the newest pen or mouse report. Measured in play, a report reaches the present 0.04 ms after it is taken, against 0.72 ms moving the cursor as the scene draws it. The rest of the frame is unchanged, so only that one present per refresh does the extra work.
 
 It is Lagless VSync's present in the blanking interval plus the cursor's: two presents a refresh. It felt far better than the same tear line alongside frame slices, where the cursor's present crowded out 1.6 slices a refresh and pacing was uneven, so it is a mode of its own and Lagless VSync is unchanged. The blanking interval's present is never given up: a cursor low on the screen has its tear line pulled up far enough for a whole frame to fit before the blanking interval's, and a cursor high on the screen is drawn on the blanking interval's present instead.
 
@@ -178,7 +178,7 @@ The `Raster sync` log lines, and everything measured for them, are only built in
 programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { rasterMetrics = true; };
 ```
 
-With them, `Raster sync pacing:` gives, for 8 bands of scanlines, how far the scene shown there stepped from exactly one refresh to the next, which is frame pacing as it reaches the screen; `Raster sync cursor:` gives the pen's report rate and spacing, how often update frames had the cursor on the pen, how far draws moved it, how old the newest report was when drawn and how long after that the frame was presented.
+With them, `Raster sync pacing:` gives, for 8 bands of scanlines, how far the scene shown there stepped from exactly one refresh to the next, which is frame pacing as it reaches the screen; `Raster sync cursor:` gives each device's report rate and spacing, how often update frames had the cursor on a pointer, how far draws moved it, how old the newest report was when drawn and how long after that the frame was presented.
 
 ## Declarative config
 

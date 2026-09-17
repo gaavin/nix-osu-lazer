@@ -56,7 +56,7 @@
 }:
 
 # osu!lazer built from gaavin/osu's raster-sync branch: ppy/osu master as of
-# 2026-09-15 (after 2026.911.0-tachyon) plus raster sync, which times every
+# 2026-09-17 (2026.918.0-tachyon) plus raster sync, which times every
 # present against the display's scanout so the tear line lands in the blanking
 # interval (Graphics > Raster sync), and draws the gameplay cursor at the newest
 # pen or mouse report as the frame is presented. A build from source has its own
@@ -68,7 +68,7 @@
 
 let
   pname = "nix-osu-lazer";
-  version = "2026.911.0-unstable-2026-09-17";
+  version = "2026.918.0-unstable-2026-09-17";
 
   # ppy.SDL3-CS bindings are generated against one SDL commit, and the package
   # ships exactly that build. The replacement has to be the same commit, so the
@@ -122,8 +122,8 @@ let
           owner = "gaavin";
           repo = "osu";
           # raster-sync
-          rev = "8807e5cc11a40b0a8799a61114ea516aeb019eb2";
-          hash = "sha256-p6esRotg09bqbyeXKmBrXRNXl28RnR0JQps8kURZGlU=";
+          rev = "ebb586bfa30f090216fc094b6a830e1e7e0ef254";
+          hash = "sha256-GW2K0vyEAn0ogSoX0GivDPvLkTksez/udbDLJLyeVhY=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";

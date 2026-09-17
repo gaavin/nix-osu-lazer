@@ -73,7 +73,6 @@ Under **Graphics > Raster sync**. The note under the mode shows the display bein
 |---|---|---|---|
 | Raster sync | `RasterSyncMode` | `TearlineSync` | `Disabled`, `TearlineSync` (one present per refresh), `FrameSlices` (several per refresh, with fixed tear lines between slices) or `CursorChasing` (`TearlineSync` plus a tear line just above the cursor) |
 | Frame slices per refresh | `RasterFrameSlices` | `4` | 2 to 16, `FrameSlices` mode only. The most slices per refresh: fewer are used while frames take too long to fill every slice |
-| Render headroom | `RasterRenderHeadroom` | `0.5` | Milliseconds kept spare on top of recent render times. How much of the recent spread is covered steers itself, so about 2% of frames finish late and the rest start as late, and show a scene as new, as they can. The steering absorbs this setting: plays from 0 to 0.25 ms measured the same margin, the same share finishing late and the same latency, so 0 is a fine place to leave it |
 | Show tear line indicator | `RasterShowTearline` | `false` | Strip down the left edge, coloured by frame slice (or by present outside `FrameSlices`) |
 
 The tear line offset is automatic. osu! measures how long the compositor takes to flip each frame and steers the tear line into the blanking interval during a play. Finished plays are stored in `~/.local/share/osu/raster-sync-flips.json` and seed the next play. **Forget recorded flips** clears them.
@@ -189,7 +188,7 @@ programs.nix-osu-lazer = {
   settings = {              # game.ini
     DimLevel = 1.0;
     ShowFirstRunSetup = false;
-    RasterRenderHeadroom = 0.3;
+    RasterFrameSlices = 8;
   };
 
   frameworkSettings = {     # framework.ini
@@ -272,8 +271,8 @@ grep 'Raster sync' ~/.local/share/osu/logs/runtime.log
 
 | Issue | Fix |
 |---|---|
-| Tear line visible or jumping | Raise **Render headroom** and check the late count in the status note. Check the steering note under **Show tear line indicator**. |
-| Fewer slices in use than set | Frames take longer than a slice to render and swap. The runtime log line for the change says which part took the time. Lower **Render headroom** or accept the lower count. A count is dropped as soon as it stops fitting, and only raised once a frame fits in 90% of a slice for two seconds, so a frame time near a slice boundary holds the lower count rather than flapping. The count is judged on all but the slowest 0.1% of frames, since a frame that overruns its slice leaves the next slice without a frame of its own, which shows as uneven pacing rather than latency. |
+| Tear line visible or jumping | Check the late count in the status note: frames start on how long recent ones took, and the margin steers itself until about 2% finish late. Check the steering note under **Show tear line indicator**. |
+| Fewer slices in use than set | Frames take longer than a slice to render and swap. The runtime log line for the change says which part took the time. A count is dropped as soon as it stops fitting, and only raised once a frame fits in 90% of a slice for two seconds, so a frame time near a slice boundary holds the lower count rather than flapping. The count is judged on all but the slowest 0.1% of frames, since a frame that overruns its slice leaves the next slice without a frame of its own, which shows as uneven pacing rather than latency. |
 | Status reports overtaken frames | The compositor is not flipping frames before the next arrives. Lower **Frame slices per refresh**. |
 | Steering note says flips are held for vblank | The compositor is not tearing. Use fullscreen and make sure nothing overlaps the game. |
 | Status asks about variable refresh rate | Turn off Adaptive Sync for the display. |

@@ -155,6 +155,14 @@ OSU_POINTER_LATCH=0 osu!      # off
 OSU_POINTER_LATCH=draw osu!   # moved as the scene draws it, without a tear line of its own
 ```
 
+The pen reports about once a millisecond on its own clock while the display scans out on another, so the newest report is anywhere from nothing to a report interval old when the cursor is scanned out, differently every refresh, and at speed the cursor wobbles along its path. Each pen report is therefore timestamped as it arrives, and the cursor is drawn where the pen's path puts it at the moment the cursor's row is scanned out: predicted from the velocity over the last couple of milliseconds, past the newest report. Allowing some age instead interpolates between real reports, which never overshoots a sharp reversal but draws the cursor that much older. The mouse is drawn at its newest report either way, since its moves arrive in bunches as the window polls.
+
+```bash
+OSU_POINTER_RESAMPLE=0 osu!     # sample the pen at scanout, predicted (the default)
+OSU_POINTER_RESAMPLE=1.1 osu!   # sample it 1.1 ms before scanout, only ever between reports
+OSU_POINTER_RESAMPLE=off osu!   # draw it at the newest report
+```
+
 ### A tear line for the cursor
 
 With **Raster sync** on **Cursor chasing**, each refresh gets one more tear line, just above the cursor, and the cursor is drawn last on that present: after the rest of the frame has finished on the GPU, at the newest pen or mouse report. Measured in play, a report reaches the present 0.04 ms after it is taken, against 0.72 ms moving the cursor as the scene draws it. The rest of the frame is unchanged, so only that one present per refresh does the extra work.

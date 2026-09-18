@@ -173,9 +173,20 @@ It is Lagless VSync's present in the blanking interval plus the cursor's: two pr
 OSU_CURSOR_TEARLINE_LEAD=32 osu!    # scanlines between the tear line and the top of the cursor
 OSU_CURSOR_TEARLINE_BANDS=7 osu!    # hold the tear line to 7 positions a refresh instead of following the cursor
 OSU_POINTER_LATCH_WAIT_GPU=1 osu!   # wait for the GPU to finish the cursor before presenting
+OSU_CURSOR_TEARLINE_PREDICT=0 osu!  # place the tear line by the pen's newest report rather than where it is predicted to be
 ```
 
+The tear line is placed where the pen is predicted to be as the top of the cursor is scanned out, so a fast upward movement doesn't carry the cursor into its own tear line.
+
 A tear line that moves still costs some pacing: each band of the screen it passes over changes from the blanking interval's frame to the cursor's, a one-off step of up to half a refresh.
+
+### The scene timed by its tear line
+
+The update thread runs free, a dozen update frames to a present, and a draw starts a render margin before a tear line that moves between presents, so the gameplay clock a present shows was sampled a different time before its tear line every present: 1.71 ms at p50, 2.55 ms at p99. During raster-synced play the gameplay clock instead runs at the time the planned present tears, less a running mean, so every present shows a scene the same age at its tear line. The mean keeps judgements and the audio offset where they were on average; the clock is never stepped back and only moves while running. The interface's beat-synced clock is left alone.
+
+```bash
+OSU_RASTER_SCENE_TIMING=0 osu!   # sample the gameplay clock whenever the update frame runs
+```
 
 ### Measurements
 

@@ -182,10 +182,14 @@ A tear line that moves still costs some pacing: each band of the screen it passe
 
 ### The scene timed by its tear line
 
-The update thread runs free, a dozen update frames to a present, and a draw starts a render margin before a tear line that moves between presents, so the gameplay clock a present shows was sampled a different time before its tear line every present: 1.71 ms at p50, 2.55 ms at p99. During raster-synced play the gameplay clock instead runs at the time the planned present tears, less a running mean, so every present shows a scene the same age at its tear line. The mean keeps judgements and the audio offset where they were on average; the clock is never stepped back and only moves while running. The interface's beat-synced clock is left alone.
+The update thread runs free, a dozen update frames to a present, and a draw picks up whichever finished last before it woke, so hit objects step unevenly from one present to the next. During raster-synced play the gameplay clock runs at real time shifted by the render margin of the present that will show each update frame, and holds still for a short window before that present's draw wakes, sized to cover 99% of drawn frames. The drawn frame's clock then reads its present's tear time less a constant, and every present's scene steps by exactly the time between tear lines. The draw thread foresees the present after the one it is planning, so update frames that run while a frame is drawing are timed by the present that will actually show them.
+
+The constant is steered on the frames that are drawn, so scenes are exactly as old as without the timing; judgements move by about +0.2 ms on average. Measured in play, each scene's step against the step between tear lines went from 0.110/0.270 ms off at p50/p90 to 0.010/0.110 ms. The clock is never stepped back, and only moves while running. The interface's beat-synced clock is left alone.
 
 ```bash
-OSU_RASTER_SCENE_TIMING=0 osu!   # sample the gameplay clock whenever the update frame runs
+OSU_RASTER_SCENE_TIMING=0 osu!     # sample the gameplay clock whenever the update frame runs
+OSU_RASTER_SCENE_CENTRE=all osu!   # centre on every update frame: judgements unmoved, drawn scenes older
+touch $XDG_RUNTIME_DIR/osu-scene-timing-off   # switch it off mid-session, for a blind comparison; rm to switch back
 ```
 
 ### Measurements
@@ -257,8 +261,31 @@ programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { bassDevicePeriod 
 | `bassDevicePeriod` | `-128` | BASS device period, in samples when negative. `null` for osu!'s default |
 | `lowLatencyPipewireAlsa` | `true` | Use the patched pipewire-alsa plugin in the sandbox |
 | `stopTabletDaemon` | `true` | Stop `opentabletdriver.service` while osu! runs |
+| `requestGamemode` | `false` | Hold gamemode's optimisations while osu! runs (see below) |
 
 `SDL_VIDEO_WAYLAND_GAME_PRESENTATION=0 osu!` disables the SDL patch for one launch.
+
+### Clocks held up while playing
+
+Left to their own devices, the GPU and CPU drop their clocks in the gaps between presents and pay to ramp back up for the next frame. Measured on an RX 6800 XT and a Ryzen 7 5800X, holding both at their top clocks took render time from 0.525/1.02 ms to 0.45/0.71 ms at p50/p99 (the GPU's own share from 0.63 to 0.35 ms at p99), the margin frames start on from 1.04 to 0.76 ms, and the scene's age at present from 1.52/1.96 ms to 1.21/1.50 ms. With `requestGamemode = true` the launcher asks gamemoded to hold its optimisations for the session, which needs gamemode set up on the system:
+
+```nix
+# NixOS configuration
+programs.gamemode = {
+  enable = true;
+  settings.gpu = {
+    apply_gpu_optimisations = "accept-responsibility";
+    gpu_device = 1;                  # /sys/class/drm/card1
+    amd_performance_level = "high";
+  };
+};
+users.users.<you>.extraGroups = [ "gamemode" ];
+
+# home-manager
+programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { requestGamemode = true; };
+```
+
+gamemode's default CPU governor is `performance`. `gamemoded -s` says whether it is active.
 
 ## Verifying
 

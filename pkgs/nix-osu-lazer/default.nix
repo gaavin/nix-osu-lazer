@@ -28,6 +28,7 @@
   gnused,
   iproute2,
   unzip,
+  gamemode,
   # osu! source to build in place of the pinned raster-sync branch, such as a
   # local checkout with `builtins.fetchGit`.
   osuSrc ? null,
@@ -46,6 +47,14 @@
   # Stop the desktop OpenTabletDriver daemon for as long as osu! runs. Turn
   # this off if osu!'s own tablet support is disabled in its settings.
   stopTabletDaemon ? true,
+  # Ask the system's gamemoded to hold its optimisations, such as the GPU's
+  # performance level and the CPU governor, for as long as osu! runs. Needs
+  # `programs.gamemode` in the NixOS configuration and the user in its group.
+  # Measured in play with the RX 6800 XT and the 5800X held at their top clocks,
+  # render time went from 0.525/1.02 ms to 0.45/0.71 ms at p50/p99 and the
+  # margin frames start on from 1.04 to 0.76 ms: left on auto, the GPU drops
+  # its clocks in the gaps between presents and pays to ramp back up.
+  requestGamemode ? false,
   # `Key = Value` lines merged into game.ini and framework.ini before launch.
   gameSettingsFile ? null,
   frameworkSettingsFile ? null,
@@ -262,6 +271,7 @@ let
     text = ''
       osu="@osu@"
       stop_tablet_daemon="${lib.optionalString stopTabletDaemon "1"}"
+      gamemoded_bin="${lib.optionalString requestGamemode "${gamemode}/bin/gamemoded"}"
       game_settings="${optionalPath gameSettingsFile}"
       framework_settings="${optionalPath frameworkSettingsFile}"
       beatmaps="${optionalPath beatmapsFile}"

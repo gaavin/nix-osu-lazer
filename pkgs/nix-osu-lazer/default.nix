@@ -77,7 +77,7 @@
 
 let
   pname = "nix-osu-lazer";
-  version = "2026.918.0-unstable-2026-09-18";
+  version = "2026.921.0-unstable-2026-09-24";
 
   # ppy.SDL3-CS bindings are generated against one SDL commit, and the package
   # ships exactly that build. The replacement has to be the same commit, so the
@@ -131,8 +131,8 @@ let
           owner = "gaavin";
           repo = "osu";
           # raster-sync
-          rev = "8b0f6b71cdda9ea1582c3bd3d4553a5a5ef4239d";
-          hash = "sha256-1JzDUiX0YAqnuTyOR7bjrAYfyDM4tMKFrGRhKGp6ozg=";
+          rev = "134099ac32dd66a5ca6499e84ed4b4ecf4810f5a";
+          hash = "sha256-sPTODoEtsYtLNiYkSsXQvqp6eeJBgah2Ijc+Apoxwwg=";
         };
 
     projectFile = "osu.Desktop/osu.Desktop.csproj";

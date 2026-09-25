@@ -4,11 +4,9 @@
   fetchFromGitHub,
   makeWrapper,
   osu-lazer-bin,
-  pipewire,
   sdl3,
   wayland-protocols,
   writeShellApplication,
-  writeText,
   aria2,
   coreutils,
   curl,
@@ -24,9 +22,6 @@
   # latency; 128 samples keeps pace with a 128-sample PipeWire quantum. null
   # keeps the default.
   bassDevicePeriod ? -128,
-  # Load a pipewire-alsa plugin that accepts ALSA periods down to 8 frames and
-  # 64 bytes, instead of 64 frames and 128 bytes, in place of the system's.
-  lowLatencyPipewireAlsa ? true,
   # Stop the desktop OpenTabletDriver daemon for as long as osu! runs. Turn
   # this off if osu!'s own tablet support is disabled in its settings.
   stopTabletDaemon ? true,
@@ -107,22 +102,6 @@ let
     "--set-default OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD ${toString bassDevicePeriod}"
   );
 
-  # BASS reaches PipeWire through ALSA's pipewire PCM plugin, which clamps the
-  # period to at least 64 frames (at 48 kHz) and 128 bytes, and asks for that
-  # as its node latency.
-  pipewire-alsa-patched = pipewire.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [
-      ./pipewire-alsa-low-latency.patch
-    ];
-  });
-
-  # NixOS names the plugin by absolute store path in /etc/alsa/conf.d, so
-  # ALSA_PLUGIN_DIR is ignored. alsa.conf loads /etc/asound.conf after conf.d,
-  # and the later definition wins; ~/.asoundrc still loads after this one.
-  asoundConf = writeText "nix-osu-lazer-asound.conf" ''
-    pcm_type.pipewire.libs.native = "${pipewire-alsa-patched}/lib/alsa-lib/libasound_module_pcm_pipewire.so"
-  '';
-
   applySettings = writeShellApplication {
     name = "nix-osu-lazer-apply-settings";
     runtimeInputs = [
@@ -199,9 +178,7 @@ appimageTools.wrapAppImage {
   # fix OpenGL renderer on nvidia + wayland
   extraBwrapArgs = [
     "--ro-bind-try /etc/egl/egl_external_platform.d /etc/egl/egl_external_platform.d"
-  ]
-  # The sandbox's /etc is a tmpfs, so this shadows only osu!'s view of it.
-  ++ lib.optional lowLatencyPipewireAlsa "--ro-bind ${asoundConf} /etc/asound.conf";
+  ];
 
   extraInstallCommands = ''
     . ${makeWrapper}/nix-support/setup-hook
@@ -226,7 +203,6 @@ appimageTools.wrapAppImage {
   passthru = {
     inherit
       sdl3-patched
-      pipewire-alsa-patched
       applySettings
       exportSettings
       exportBeatmaps

@@ -25,8 +25,7 @@ This flake takes the same AppImage as nixpkgs `osu-lazer-bin` and swaps only its
 The launcher also:
 
 - sets `SDL_VIDEODRIVER=wayland`
-- sets the BASS device period to 128 samples through osu!framework's `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD` hook. Against a 128-sample PipeWire quantum, BASS's reported output latency drops from 15 ms to 5 ms
-- loads a [patched](pkgs/nix-osu-lazer/pipewire-alsa-low-latency.patch) pipewire-alsa PCM plugin, which accepts ALSA periods down to 8 frames and 64 bytes instead of 64 frames and 128 bytes. It goes into the sandbox's `/etc/asound.conf`, so the rest of the system keeps the stock plugin
+- sets the BASS device period to 128 samples through osu!framework's `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD` hook. Against a 128-sample PipeWire quantum, BASS's reported output latency drops from 15 ms to 5 ms. The system's PipeWire has to hold up at that quantum: stock builds clamp an ALSA period to 64 frames and reset the stream on every underrun, which [nix-pipewire-patched](https://github.com/gaavin/nix-pipewire-patched) fixes on both counts
 - stops the `opentabletdriver.service` user unit while osu! runs, and starts it again on exit. osu! reads the tablet itself, and a running daemon would hand it the pen a second time through its virtual tablet
 - sets `OSU_EXTERNAL_UPDATE_PROVIDER=1`, so updates come from nixpkgs
 - merges declarative settings and imports declarative beatmaps and skins, when the [Home Manager module](#declarative-settings-beatmaps-and-skins) sets them
@@ -168,7 +167,6 @@ programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { bassDevicePeriod 
 |----------|---------|--------|
 | `nativeWayland` | `true` | Sets `SDL_VIDEODRIVER=wayland`. Without it SDL may pick XWayland, where none of this applies. |
 | `bassDevicePeriod` | `-128` | BASS device update period, in samples when negative. `null` keeps osu!'s default. Set with `--set-default`, so exporting the variable overrides it for one launch. |
-| `lowLatencyPipewireAlsa` | `true` | Loads the patched pipewire-alsa plugin inside osu!'s sandbox. Smaller periods only help if PipeWire's own quantum goes that low too (`default.clock.min-quantum`). |
 | `stopTabletDaemon` | `true` | Stops `opentabletdriver.service` while osu! runs. Turn it off if osu!'s own tablet support is disabled. |
 
 `SDL_VIDEO_WAYLAND_GAME_PRESENTATION=0 osu!` restores stock SDL behaviour without a rebuild.
@@ -195,7 +193,7 @@ A new release can also add settings or change their defaults. Refresh `factory-g
 
 | Issue | Solution |
 |-------|----------|
-| Audio crackles | Raise the period: `bassDevicePeriod = -256`, or `null` for osu!'s default. |
+| Audio crackles | Stock PipeWire resets the stream on every underrun at a 128-sample quantum, and its ALSA plugin will not take a period that small to begin with. Run [nix-pipewire-patched](https://github.com/gaavin/nix-pipewire-patched) as `services.pipewire.package`, or raise the period: `bassDevicePeriod = -256`, or `null` for osu!'s default. |
 | No tearing | Check that osu! uses OpenGL with the frame limiter on Unlimited, then run the check under [Verifying](#verifying). |
 | Tablet dead outside osu! | The launcher restarts the daemon when osu! exits. If the launcher itself was killed with SIGKILL, run `systemctl --user start opentabletdriver.service`. |
 | A setting does not stick | osu! was running when it was merged. Close osu! and launch it again. |
@@ -205,6 +203,6 @@ A new release can also add settings or change their defaults. Refresh `factory-g
 
 - [ppy/osu](https://github.com/ppy/osu): osu!lazer
 - [libsdl-org/SDL](https://github.com/libsdl-org/SDL)
-- vestaia from thePooN's Discord server: pipewire-alsa patches
+- [gaavin/nix-pipewire-patched](https://github.com/gaavin/nix-pipewire-patched): vestaia's low-latency PipeWire patches, which the 128-sample period leans on
 - [NixOS/nixpkgs `osu-lazer-bin`](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/os/osu-lazer-bin/package.nix): the AppImage packaging this builds on
 - [gaavin/nix-osu-stable](https://github.com/gaavin/nix-osu-stable): the beatmap mirror downloader and settings merge this adapts

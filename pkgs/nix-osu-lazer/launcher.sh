@@ -72,6 +72,16 @@ restart_daemon() {
   fi
 }
 
+# gamemoded keeps its optimisations while a process it was asked for is alive,
+# and drops them once it has gone. The launcher's process lives for the whole
+# session: it either waits on osu! or becomes it.
+request_gamemode() {
+  [ -n "$gamemoded_bin" ] || return 0
+  if ! "$gamemoded_bin" -r"$$" >/dev/null 2>&1; then
+    info "gamemoded did not answer; is programs.gamemode enabled?"
+  fi
+}
+
 launch() {
   local running=""
   local -a imports=()
@@ -90,6 +100,10 @@ launch() {
     if [ "${#imports[@]}" -gt 0 ]; then
       info "importing ${#imports[@]} beatmap set(s) and skin(s)"
     fi
+  fi
+
+  if [ -z "$running" ]; then
+    request_gamemode
   fi
 
   # A second launch only hands its arguments to the running instance. It finds

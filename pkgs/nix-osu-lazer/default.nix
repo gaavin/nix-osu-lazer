@@ -16,6 +16,7 @@
   gnused,
   iproute2,
   unzip,
+  gamemode,
   nativeWayland ? true,
   # BASS device update period handed to osu!framework's testing hook, in
   # samples when negative. osu!'s default 10ms period is most of its audio
@@ -25,6 +26,12 @@
   # Stop the desktop OpenTabletDriver daemon for as long as osu! runs. Turn
   # this off if osu!'s own tablet support is disabled in its settings.
   stopTabletDaemon ? true,
+  # Ask the system's gamemoded to hold its optimisations, such as the GPU's
+  # performance level and the CPU governor, for as long as osu! runs. Needs
+  # `programs.gamemode` in the NixOS configuration and the user in its group.
+  # Left on auto, the GPU drops its clocks in the gaps between presents and
+  # pays to ramp back up for the next frame.
+  requestGamemode ? false,
   # `Key = Value` lines merged into game.ini and framework.ini before launch.
   gameSettingsFile ? null,
   frameworkSettingsFile ? null,
@@ -153,6 +160,7 @@ let
     text = ''
       osu="@osu@"
       stop_tablet_daemon="${lib.optionalString stopTabletDaemon "1"}"
+      gamemoded_bin="${lib.optionalString requestGamemode "${gamemode}/bin/gamemoded"}"
       game_settings="${optionalPath gameSettingsFile}"
       framework_settings="${optionalPath frameworkSettingsFile}"
       beatmaps="${optionalPath beatmapsFile}"

@@ -168,8 +168,31 @@ programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { bassDevicePeriod 
 | `nativeWayland` | `true` | Sets `SDL_VIDEODRIVER=wayland`. Without it SDL may pick XWayland, where none of this applies. |
 | `bassDevicePeriod` | `-128` | BASS device update period, in samples when negative. `null` keeps osu!'s default. Set with `--set-default`, so exporting the variable overrides it for one launch. |
 | `stopTabletDaemon` | `true` | Stops `opentabletdriver.service` while osu! runs. Turn it off if osu!'s own tablet support is disabled. |
+| `requestGamemode` | `false` | Asks the system's `gamemoded` to hold its optimisations for the whole session (see [below](#clocks-held-up-while-playing)). |
 
 `SDL_VIDEO_WAYLAND_GAME_PRESENTATION=0 osu!` restores stock SDL behaviour without a rebuild.
+
+### Clocks held up while playing
+
+Left to their own devices, the GPU and CPU drop their clocks in the gaps between presents and pay to ramp back up for the next frame. With `requestGamemode = true` the launcher asks `gamemoded` to hold its optimisations for its own process, which lives for the whole session because it either waits on osu! or becomes it, so nothing is preloaded into the sandbox. It needs gamemode set up on the system:
+
+```nix
+# NixOS configuration
+programs.gamemode = {
+  enable = true;
+  settings.gpu = {
+    apply_gpu_optimisations = "accept-responsibility";
+    gpu_device = 1;                  # /sys/class/drm/card1
+    amd_performance_level = "high";
+  };
+};
+users.users.<you>.extraGroups = [ "gamemode" ];
+
+# home-manager
+programs.nix-osu-lazer.package = pkgs.nix-osu-lazer.override { requestGamemode = true; };
+```
+
+gamemode's default CPU governor is `performance`. `gamemoded -s` says whether it is active, and the launcher says so if gamemoded does not answer.
 
 ## Verifying
 

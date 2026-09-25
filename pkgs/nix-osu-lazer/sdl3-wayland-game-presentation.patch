@@ -43,22 +43,22 @@ index 08ced0e..99a058c 100644
       * but if we want low latency (double buffer scheme), we issue the pageflip and then wait
       * immediately for the Wayland frame callback.
 diff --git a/src/video/wayland/SDL_waylandvideo.c b/src/video/wayland/SDL_waylandvideo.c
-index f3facbd..3c767c9 100644
+index 6abe2ff..28e07af 100644
 --- a/src/video/wayland/SDL_waylandvideo.c
 +++ b/src/video/wayland/SDL_waylandvideo.c
-@@ -70,6 +70,8 @@
- #include "pointer-warp-v1-client-protocol.h"
- #include "pointer-gestures-unstable-v1-client-protocol.h"
+@@ -72,6 +72,8 @@
  #include "single-pixel-buffer-v1-client-protocol.h"
+ #include "xdg-session-management-v1-client-protocol.h"
+ #include "xdg-toplevel-tag-v1-client-protocol.h"
 +#include "content-type-v1-client-protocol.h"
 +#include "tearing-control-v1-client-protocol.h"
  
  #ifdef HAVE_LIBDECOR_H
  #include <libdecor.h>
-@@ -1425,6 +1427,10 @@ static void handle_registry_global(void *data, struct wl_registry *registry, uin
-         Wayland_DisplayInitPointerGestureManager(d);
-     } else if (SDL_strcmp(interface, wp_single_pixel_buffer_manager_v1_interface.name) == 0) {
-         d->single_pixel_buffer_manager = wl_registry_bind(d->registry, id, &wp_single_pixel_buffer_manager_v1_interface, 1);
+@@ -1520,6 +1522,10 @@ static void handle_registry_global(void *data, struct wl_registry *registry, uin
+         d->xdg_session_manager = wl_registry_bind(d->registry, id, &xdg_session_manager_v1_interface, 1);
+     } else if (SDL_strcmp(interface, xdg_toplevel_tag_manager_v1_interface.name) == 0) {
+         d->xdg_toplevel_tag_manager = wl_registry_bind(d->registry, id, &xdg_toplevel_tag_manager_v1_interface, 1);
 +    } else if (SDL_strcmp(interface, wp_tearing_control_manager_v1_interface.name) == 0) {
 +        d->wp_tearing_control_manager_v1 = wl_registry_bind(d->registry, id, &wp_tearing_control_manager_v1_interface, 1);
 +    } else if (SDL_strcmp(interface, wp_content_type_manager_v1_interface.name) == 0) {
@@ -66,7 +66,7 @@ index f3facbd..3c767c9 100644
      }
  #ifdef SDL_WL_FIXES_VERSION
      else if (SDL_strcmp(interface, wl_fixes_interface.name) == 0) {
-@@ -1837,6 +1843,16 @@ static void Wayland_VideoCleanup(SDL_VideoDevice *_this)
+@@ -1945,6 +1951,16 @@ static void Wayland_VideoCleanup(SDL_VideoDevice *_this)
          data->zwp_pointer_gestures = NULL;
      }
  
@@ -84,32 +84,32 @@ index f3facbd..3c767c9 100644
          wp_single_pixel_buffer_manager_v1_destroy(data->single_pixel_buffer_manager);
          data->single_pixel_buffer_manager = NULL;
 diff --git a/src/video/wayland/SDL_waylandvideo.h b/src/video/wayland/SDL_waylandvideo.h
-index e4247e6..6cf2089 100644
+index 17a9ba2..65fd27e 100644
 --- a/src/video/wayland/SDL_waylandvideo.h
 +++ b/src/video/wayland/SDL_waylandvideo.h
-@@ -87,6 +87,8 @@ struct SDL_VideoData
-     struct wl_fixes *wl_fixes;
-     struct zwp_pointer_gestures_v1 *zwp_pointer_gestures;
+@@ -90,6 +90,8 @@ struct SDL_VideoData
      struct wp_single_pixel_buffer_manager_v1 *single_pixel_buffer_manager;
+     struct xdg_session_manager_v1 *xdg_session_manager;
+     struct xdg_toplevel_tag_manager_v1 *xdg_toplevel_tag_manager;
 +    struct wp_tearing_control_manager_v1 *wp_tearing_control_manager_v1;
 +    struct wp_content_type_manager_v1 *wp_content_type_manager_v1;
  
+     struct xdg_session_v1 *xdg_session;
      struct xkb_context *xkb_context;
- 
 diff --git a/src/video/wayland/SDL_waylandwindow.c b/src/video/wayland/SDL_waylandwindow.c
-index f0ab721..f97fbb5 100644
+index b630bdf..63a1aab 100644
 --- a/src/video/wayland/SDL_waylandwindow.c
 +++ b/src/video/wayland/SDL_waylandwindow.c
-@@ -49,6 +49,8 @@
- #include "frog-color-management-v1-client-protocol.h"
- #include "xdg-toplevel-icon-v1-client-protocol.h"
+@@ -51,6 +51,8 @@
  #include "color-management-v1-client-protocol.h"
+ #include "xdg-session-management-v1-client-protocol.h"
+ #include "xdg-toplevel-tag-v1-client-protocol.h"
 +#include "content-type-v1-client-protocol.h"
 +#include "tearing-control-v1-client-protocol.h"
  
  #ifdef HAVE_LIBDECOR_H
  #include <libdecor.h>
-@@ -292,6 +294,50 @@ static void RepositionPopup(SDL_Window *window, bool use_current_position)
+@@ -294,6 +296,50 @@ static void RepositionPopup(SDL_Window *window, bool use_current_position)
      }
  }
  
@@ -160,7 +160,7 @@ index f0ab721..f97fbb5 100644
  static void SetSurfaceOpaqueRegion(struct wl_surface *surface, int width, int height)
  {
      SDL_VideoData *viddata = SDL_GetVideoDevice()->internal;
-@@ -2921,6 +2967,13 @@ bool Wayland_ReconfigureWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_W
+@@ -3032,6 +3078,13 @@ bool Wayland_ReconfigureWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_W
              WAYLAND_wl_event_queue_destroy(data->gles_swap_frame_event_queue);
              data->gles_swap_frame_event_queue = NULL;
          }
@@ -174,7 +174,7 @@ index f0ab721..f97fbb5 100644
      }
  
      return true;
-@@ -3033,6 +3086,11 @@ bool Wayland_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
+@@ -3144,6 +3197,11 @@ bool Wayland_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
              data->wp_alpha_modifier_surface_v1 = wp_alpha_modifier_v1_get_surface(c->wp_alpha_modifier_v1, data->surface);
              wp_alpha_modifier_surface_v1_set_multiplier(data->wp_alpha_modifier_surface_v1, SDL_MAX_UINT32);
          }
@@ -186,7 +186,7 @@ index f0ab721..f97fbb5 100644
      }
  
      // Must be called before EGL configuration to set the drawable backbuffer size.
-@@ -3634,6 +3692,14 @@ void Wayland_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window)
+@@ -3751,6 +3809,14 @@ void Wayland_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window)
              wp_alpha_modifier_surface_v1_destroy(wind->wp_alpha_modifier_surface_v1);
          }
  
@@ -202,20 +202,20 @@ index f0ab721..f97fbb5 100644
              frog_color_managed_surface_destroy(wind->frog_color_managed_surface);
          }
 diff --git a/src/video/wayland/SDL_waylandwindow.h b/src/video/wayland/SDL_waylandwindow.h
-index b9d0a25..a729d5e 100644
+index 427c427..d1d2fbd 100644
 --- a/src/video/wayland/SDL_waylandwindow.h
 +++ b/src/video/wayland/SDL_waylandwindow.h
-@@ -118,6 +118,9 @@ struct SDL_WindowData
-     struct xdg_toplevel_icon_v1 *xdg_toplevel_icon_v1;
+@@ -126,6 +126,9 @@ struct SDL_WindowData
      struct frog_color_managed_surface *frog_color_managed_surface;
      struct wp_color_management_surface_feedback_v1 *wp_color_management_surface_feedback;
+     struct xdg_toplevel_session_v1 *xdg_toplevel_session;
 +    struct wp_content_type_v1 *wp_content_type_v1;
 +    struct wp_tearing_control_v1 *wp_tearing_control_v1;
 +    bool tearing_async;
  
      struct Wayland_ColorInfoState *color_info_state;
  
-@@ -281,5 +284,6 @@ extern bool Wayland_ReconfigureWindow(SDL_VideoDevice *_this, SDL_Window *window
+@@ -291,5 +294,6 @@ extern bool Wayland_ReconfigureWindow(SDL_VideoDevice *_this, SDL_Window *window
  
  extern void Wayland_RemoveOutputFromWindow(SDL_WindowData *window, SDL_DisplayData *display_data);
  extern void Wayland_UpdateWindowPosition(SDL_Window *window);

@@ -53,16 +53,16 @@ let
   # ppy.SDL3-CS bindings are generated against one SDL commit, and the release
   # ships exactly that build. The replacement has to be the same commit, so
   # the extraction below refuses a release that bundles anything else.
-  sdlRevision = "SDL-3.5.0-f0e99e7";
+  sdlRevision = "SDL-3.5.0-a8591d9";
 
   sdl3-patched = sdl3.overrideAttrs (old: {
-    version = "3.5.0-unstable-2026-06-28";
+    version = "3.5.0-unstable-2026-07-20";
 
     src = fetchFromGitHub {
       owner = "libsdl-org";
       repo = "SDL";
-      rev = "f0e99e7c7f9aa90d5ce2e3b8a69f72c23faf257e";
-      hash = "sha256-sRas/PqkNkulfY/ybsUfRezrrSPTOMJ6AwktaMrpNVM=";
+      rev = "a8591d943b7079b17fdd018dc04ec9c71dc94ae4";
+      hash = "sha256-bPx7bsdEMl6bMiwZ8QIi4P5YxAjevTci/A+9wx/Ej/g=";
     };
 
     patches = (old.patches or [ ]) ++ [
